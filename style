@@ -1,4 +1,3 @@
-
 :root {
   --primary: #002c5f;      /* UNISA Blue */
   --secondary: #A71930;    /* UNISA Red */
