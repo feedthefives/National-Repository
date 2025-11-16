@@ -1,7 +1,7 @@
 
 :root {
-  --primary: #0F204B;
-  --secondary: #A71930;
+  --primary: #002c5f;      /* UNISA Blue */
+  --secondary: #A71930;    /* UNISA Red */
   --light: #f5f5f5;
   --mid: #e0e0e0;
   --dark: #222;
@@ -65,14 +65,15 @@ body {
   height: 56px;
   width: auto;
   display: block;
-  filter: brightness(0) invert(1);
+  border-radius: 4px;
 }
 
 .header-title {
   justify-self: center;
-  font-size: 40px;
-  font-weight: 800;
+  font-size: 32px;
+  font-weight: 700;
   letter-spacing: .6px;
+  text-align: center;
 }
 
 .header-spacer {
@@ -106,12 +107,12 @@ body {
 }
 
 .btn:hover {
-  filter: brightness(.95);
+  background: var(--secondary);
   transform: translateY(-1px);
 }
 
 .search-btn {
-  background: var(--muted);
+  background: var(--secondary);
 }
 
 .refresh-btn {
@@ -155,7 +156,6 @@ body {
 
 .search-input::placeholder {
   color: #777;
-  text-align: center;
   font-weight: 500;
 }
 
@@ -185,10 +185,6 @@ body {
   opacity: 1;
   background: var(--secondary);
   transform: translateY(-1px);
-}
-
-.tab.elis.active {
-  background: #8b5cf6;
 }
 
 /* Results Section */
@@ -232,9 +228,9 @@ body {
   flex: 0 0 280px;
   position: sticky;
   top: 90px;
-  background: rgba(15, 32, 75, 0.08);
+  background: rgba(0, 44, 95, 0.08);
   backdrop-filter: saturate(140%) blur(0px);
-  border: 1px solid rgba(15, 32, 75, 0.15);
+  border: 1px solid rgba(0, 44, 95, 0.15);
   border-radius: 12px;
   padding: 14px;
   box-shadow: var(--shadow);
@@ -277,13 +273,13 @@ body {
   min-width: 0;
 }
 
-/* Cards Grid – FIXED GRID, NO MASONRY */
+/* Cards Grid */
 .data-cards-container {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 22px;
   margin-top: 14px;
-  align-items: stretch;       /* each grid cell same height in a row */
+  align-items: stretch;
 }
 
 /* Data Cards */
@@ -293,7 +289,8 @@ body {
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  height: 100%;               /* fill row height → no vertical gaps */
+  height: 100%;
+  border-left: 4px solid var(--secondary);
 }
 
 .data-card:hover {
@@ -325,7 +322,7 @@ body {
 
 .card-body {
   padding: 16px;
-  flex: 1;                     /* stretch so footer sticks to bottom */
+  flex: 1;
 }
 
 .card-title {
@@ -342,9 +339,24 @@ body {
   font-size: 14px;
 }
 
+.card-degree,
+.card-advisor,
+.card-department {
+  font-size: 14px;
+  color: #555;
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.card-degree b,
+.card-advisor b,
+.card-department b {
+  color: #333;
+}
+
 .card-description {
   color: #555;
-  margin: 0;
+  margin: 12px 0 0;
   line-height: 1.5;
   font-size: 14px;
 }
@@ -434,13 +446,14 @@ body {
   color: #666;
 }
 
-/* Zotero Card */
+/* About Card */
 .zotero-card {
   background: #fff;
   border-radius: 10px;
   box-shadow: var(--shadow);
   padding: 24px;
   margin: 24px 0;
+  border-left: 4px solid var(--primary);
 }
 
 .zotero-head {
@@ -586,7 +599,7 @@ body {
   }
   
   .header-title {
-    font-size: 32px;
+    font-size: 28px;
   }
 }
 
@@ -623,7 +636,7 @@ body {
   }
   
   .header-title {
-    font-size: 28px;
+    font-size: 24px;
     justify-self: start;
     margin-left: 10px;
   }
@@ -650,7 +663,7 @@ body {
 
 @media (max-width: 480px) {
   .header-title {
-    font-size: 24px;
+    font-size: 20px;
   }
   
   .brand-logo {
