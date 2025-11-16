@@ -1,4 +1,3 @@
-
 const API_BASE = "https://national-repository.feedthefives.workers.dev/api";
 const PAGE_SIZE = 20;
 
@@ -17,11 +16,17 @@ const nextPageBtn = qs("#nextPage");
 const paginationEl = qs("#pagination");
 const statusBox = qs("#systemStatus");
 
+// Panels to hide until data exists
+const filtersPanel = qs("#filtersPanel");
+const resultsPanel = qs("#resultsPanel");
+
 function setSummary(text) {
   if (resultsSummary) resultsSummary.textContent = text;
 }
 
-// Debounce helper for auto search
+// -----------------------------
+// Debounce helper (auto-search)
+// -----------------------------
 function debounce(fn, delay) {
   let t;
   return (...args) => {
@@ -30,12 +35,65 @@ function debounce(fn, delay) {
   };
 }
 
+// -----------------------------
+// AUTO HARVEST ON PAGE LOAD
+// -----------------------------
+async function autoHarvestOnLoad() {
+  try {
+    const res = await fetch(`${API_BASE}/auto-harvest`);
+    const data = await res.json();
+    console.log("Auto-harvest complete:", data);
+
+    // Now filters have data → Load them AFTER auto-harvest
+    await loadFilters();
+    await loadHealth();
+
+    // Show initial published theses (latest harvest)
+    await loadInitialRecords();
+  } catch (err) {
+    console.error("Auto-harvest error:", err);
+  }
+}
+
+// -----------------------------
+// Load initial harvested data (no search query yet)
+// -----------------------------
+async function loadInitialRecords() {
+  try {
+    const res = await fetch(`${API_BASE}/search?q=&page=1&pageSize=${PAGE_SIZE}`);
+    const data = await res.json();
+
+    if (!data.results || data.results.length === 0) {
+      renderEmpty("Start typing above to search the national theses repository.");
+      return;
+    }
+
+    // Display initial results
+    resultsPanel.classList.remove("hidden");
+    filtersPanel.classList.remove("hidden");
+
+    renderResults(data.results);
+    setSummary(`${data.total.toLocaleString()} available theses`);
+    totalResults = data.total;
+    updatePagination();
+  } catch (e) {
+    console.error("Initial load error:", e);
+    renderError("Could not load initial records.");
+  }
+}
+
+// -----------------------------
+// Load Filters (AFTER auto-harvest only)
+// -----------------------------
 async function loadFilters() {
   try {
+    yearFilter.innerHTML = `<option value="">All years</option>`;
+    institutionFilter.innerHTML = `<option value="">All institutions</option>`;
+
     const res = await fetch(`${API_BASE}/filters`);
     const data = await res.json();
 
-    if (data.years && Array.isArray(data.years)) {
+    if (Array.isArray(data.years)) {
       for (const y of data.years) {
         const opt = document.createElement("option");
         opt.value = y;
@@ -43,7 +101,7 @@ async function loadFilters() {
         yearFilter.appendChild(opt);
       }
     }
-    if (data.institutions && Array.isArray(data.institutions)) {
+    if (Array.isArray(data.institutions)) {
       for (const inst of data.institutions) {
         const opt = document.createElement("option");
         opt.value = inst;
@@ -62,24 +120,23 @@ async function loadHealth() {
     const data = await res.json();
 
     if (data.ok) {
-      const total = data.total_records || 0;
-      const repos = data.repositories || 0;
       statusBox.innerHTML = `
-        <div><strong>Total records:</strong> ${total.toLocaleString()}</div>
-        <div><strong>Repositories:</strong> ${repos}</div>
+        <div><strong>Total records:</strong> ${data.count.toLocaleString()}</div>
+        <div><strong>Repositories:</strong> ${data.repositories}</div>
         <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-          Updated: ${new Date(data.timestamp).toLocaleString()}
+          Updated: ${new Date(data.time).toLocaleString()}
         </div>
       `;
-    } else {
-      statusBox.textContent = "Status unavailable.";
     }
   } catch (e) {
-    console.error("Health error", e);
+    console.error("Health error:", e);
     statusBox.textContent = "Could not load system status.";
   }
 }
 
+// -----------------------------
+// Rendering helpers
+// -----------------------------
 function renderLoading() {
   resultsGrid.innerHTML = `
     <div class="empty-state">
@@ -115,12 +172,13 @@ function renderResults(records) {
   }
 
   resultsGrid.innerHTML = "";
+  resultsPanel.classList.remove("hidden");
+  filtersPanel.classList.remove("hidden");
 
   for (const r of records) {
-    const authors = Array.isArray(r.authors) ? r.authors.join(", ") : (r.authors || "");
-    const desc = (r.description || "").trim();
-    const shortDesc =
-      desc.length > 280 ? desc.slice(0, 280).trimEnd() + "…" : desc;
+    const authors = Array.isArray(r.authors)
+      ? r.authors.join(", ")
+      : r.authors || "";
 
     const card = document.createElement("article");
     card.className = "card";
@@ -130,20 +188,15 @@ function renderResults(records) {
         <span class="card-inst">${r.institution || ""}</span>
       </div>
       <h3 class="card-title">${r.title || "Untitled thesis"}</h3>
-      ${
-        authors
-          ? `<div class="card-authors">${authors}</div>`
-          : ""
-      }
-      ${
-        shortDesc
-          ? `<div class="card-desc">${shortDesc}</div>`
-          : ""
-      }
+      ${authors ? `<div class="card-authors">${authors}</div>` : ""}
       <div class="card-meta-row">
         <div class="card-meta">
           ${r.year ? `Year: ${r.year}` : ""}<br/>
-          ${r.identifier ? `Handle: ${r.identifier.replace(/^https?:\/\//, "")}` : ""}
+          ${
+            r.identifier
+              ? `Handle: ${r.identifier.replace(/^https?:\/\//, "")}`
+              : ""
+          }
         </div>
         <div class="card-actions">
           ${
@@ -158,6 +211,9 @@ function renderResults(records) {
   }
 }
 
+// -----------------------------
+// Pagination
+// -----------------------------
 function updatePagination() {
   if (!paginationEl) return;
   if (totalResults <= PAGE_SIZE) {
@@ -165,7 +221,10 @@ function updatePagination() {
     return;
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalResults / PAGE_SIZE)
+  );
   paginationEl.style.display = "flex";
   pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
 
@@ -173,18 +232,16 @@ function updatePagination() {
   nextPageBtn.disabled = currentPage >= totalPages;
 }
 
+// -----------------------------
+// Search
+// -----------------------------
 async function performSearch(page = 1) {
   const q = currentQuery.trim();
   const year = yearFilter.value;
   const inst = institutionFilter.value;
 
   if (!q && !year && !inst) {
-    resultsGrid.innerHTML = `
-      <div class="empty-state">
-        <h3>National theses search</h3>
-        <p>Start typing in the search box to search across South African theses and dissertations.</p>
-      </div>
-    `;
+    renderEmpty("Start typing to search theses…");
     paginationEl.style.display = "none";
     setSummary("Start typing to search theses…");
     return;
@@ -204,20 +261,18 @@ async function performSearch(page = 1) {
 
   try {
     const res = await fetch(`${API_BASE}/search?${params.toString()}`);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
     const data = await res.json();
+
     totalResults = data.total || 0;
 
     if (totalResults === 0) {
       renderEmpty("No theses match your search.");
-      setSummary("0 results.");
       paginationEl.style.display = "none";
+      setSummary("0 results.");
       return;
     }
 
-    renderResults(data.results || []);
+    renderResults(data.results);
     setSummary(
       `${totalResults.toLocaleString()} result${
         totalResults === 1 ? "" : "s"
@@ -231,14 +286,13 @@ async function performSearch(page = 1) {
   }
 }
 
-// Debounced version for typing
 const debouncedSearch = debounce(() => performSearch(1), 450);
 
-/* Event wiring */
-
+// -----------------------------
+// Event Listeners
+// -----------------------------
 document.addEventListener("DOMContentLoaded", () => {
-  loadFilters();
-  loadHealth();
+  autoHarvestOnLoad();
 
   const searchInput = qs("#searchInput");
   const searchBtn = qs("#searchButton");
@@ -265,12 +319,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (yearFilter) {
-    yearFilter.addEventListener("change", () => performSearch(1));
-  }
-  if (institutionFilter) {
-    institutionFilter.addEventListener("change", () => performSearch(1));
-  }
+  yearFilter.addEventListener("change", () => performSearch(1));
+  institutionFilter.addEventListener("change", () => performSearch(1));
 
   const clearBtn = qs("#clearFilters");
   if (clearBtn) {
@@ -282,18 +332,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   prevPageBtn.addEventListener("click", () => {
-    if (currentPage > 1) {
-      performSearch(currentPage - 1);
-    }
+    if (currentPage > 1) performSearch(currentPage - 1);
   });
 
   nextPageBtn.addEventListener("click", () => {
-    const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE));
-    if (currentPage < totalPages) {
-      performSearch(currentPage + 1);
-    }
+    const totalPages = Math.ceil(totalResults / PAGE_SIZE);
+    if (currentPage < totalPages) performSearch(currentPage + 1);
   });
-
-  // Initial empty state
-  renderEmpty("Start typing above to search the national theses repository.");
 });
