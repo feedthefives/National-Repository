@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Theses & Dissertations Harvester</title>
+  <title>National Repository – Theses & Dissertations</title>
 
   <!-- Icons -->
   <link
@@ -15,7 +16,8 @@
   <link rel="stylesheet" href="style.css" />
 
   <style>
-    /* ========== Header Logo Resize ========== */
+    /* Small tweaks on top of style.css */
+
     .brand-logo {
       height: 80px;
       width: auto;
@@ -26,7 +28,6 @@
       transform: scale(1.05);
     }
 
-    /* ========== Pagination ========== */
     .pagination-controls {
       display: flex;
       justify-content: center;
@@ -58,28 +59,6 @@
       font-size: 14px;
     }
 
-    /* ========== Source Indicator ========== */
-    .source-indicator {
-      text-align: center;
-      margin-top: 0.75rem;
-      margin-bottom: 0.5rem;
-      color: #444;
-      font-style: italic;
-      padding: 0.6rem 0.75rem;
-      background: #f8f9fa;
-      border-radius: 6px;
-    }
-
-    .live-badge {
-      background: #28a745;
-      color: white;
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      margin-left: 0.5rem;
-    }
-
-    /* ========== Harvest Notification ========== */
     .harvest-notification {
       position: fixed;
       top: 100px;
@@ -94,7 +73,6 @@
       display: none;
     }
 
-    /* ========== System Status ========== */
     .system-status {
       margin-top: 2rem;
       padding-top: 1rem;
@@ -112,6 +90,16 @@
       color: #666;
       line-height: 1.4;
     }
+
+    .source-indicator {
+      text-align: center;
+      margin-top: 0.75rem;
+      color: #666;
+      font-style: italic;
+      padding: 0.5rem;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
   </style>
 </head>
 
@@ -126,7 +114,7 @@
           src="https://raw.githubusercontent.com/archiverepo1/InquiryBase/main/logo.png"
         />
       </a>
-      <div class="header-title">Theses &amp; Dissertations Harvester</div>
+      <div class="header-title">National Repository</div>
       <div class="header-spacer"></div>
     </div>
   </header>
@@ -139,22 +127,16 @@
           class="search-input"
           id="searchBox"
           type="text"
-          placeholder='Search theses & dissertations by keyword, title, or author (use quotes "" for exact matches)...'
+          placeholder='Search national theses & dissertations by keyword, title, or author (use quotes "" for exact matches)...'
         />
         <button class="btn search-btn" id="searchBtn">
           <i class="fa-solid fa-magnifying-glass"></i> Search
         </button>
       </div>
 
-      <!-- Source Indicator -->
-      <div id="sourceIndicator" class="source-indicator">
-        Searching: <span id="currentSource">South African DSpace theses &amp; dissertations</span>
-        <span id="liveBadge" class="live-badge">Cached + Live Incremental Harvest</span>
-      </div>
-
-      <!-- Single category tab just for clarity -->
-      <div class="source-tabs">
-        <button class="tab active" data-type="theses">Theses &amp; Dissertations</button>
+      <div class="source-indicator">
+        Searching: <strong>South African Institutional Repositories</strong> –
+        <span>Theses &amp; Dissertations only</span>
       </div>
     </section>
 
@@ -173,7 +155,7 @@
             <i class="fa-solid fa-filter"></i> Filters
           </h4>
           <div class="filters" id="filtersWrap"><!-- built by JS --></div>
-          
+
           <div class="system-status">
             <h4><i class="fas fa-info-circle"></i> System Info</h4>
             <div id="systemInfo">Loading system status...</div>
@@ -201,7 +183,7 @@
       </div>
     </section>
 
-    <!-- ZOTERO CARD (kept as-is) -->
+    <!-- ZOTERO CARD -->
     <section class="zotero-card">
       <div class="zotero-head">
         <div class="zotero-mark">Z</div>
@@ -236,18 +218,17 @@
   <div class="top-footer">
     <div class="top-footer-content">
       <div class="copyright">
-        © 2025 Academic Library Theses Harvester. All rights reserved.
+        © 2025 National Theses Repository Harvester. All rights reserved.
       </div>
       <button
         class="email-button"
-        onclick="window.location.href='mailto:contact@qdataresearch.com?subject=Theses%20Harvester%20Inquiry'"
-      >
+        onclick="window.location.href='mailto:contact@qdataresearch.com?subject=National%20Repository%20Inquiry'">
         Email Us
       </button>
     </div>
   </div>
 
-  <footer class="footer">South African Theses &amp; Dissertations Harvesting System</footer>
+  <footer class="footer">South African Theses &amp; Dissertations Harvester</footer>
 
   <!-- Floating bulk RIS export -->
   <button id="bulkRisButton" class="bulk-ris-btn" style="display:none;">
