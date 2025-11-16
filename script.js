@@ -1,35 +1,34 @@
-// 🔗 IMPORTANT: put your real Worker URL here
-// Example: "https://national-repository.yourname.workers.dev/api"
-const API_BASE = "https://YOUR-WORKER-SUBDOMAIN.workers.dev/api";
 
+// ===============================
+// CONFIG
+// ===============================
+const API_BASE = "https://national-repository.feedthefives.workers.dev/api";
 const PAGE_SIZE = 24;
+
 let currentQuery = "";
 let currentPage = 1;
-let currentFilters = {};
 let totalPages = 1;
+let currentFilters = {};
 let selectedCount = 0;
 let lastHarvestTime = 0;
 const HARVEST_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
-/* ---------- helpers ---------- */
+// Helpers
 const qs = (s) => document.querySelector(s);
 const qsa = (s) => [...document.querySelectorAll(s)];
 const show = (el) => el && (el.style.display = "");
 const hide = (el) => el && (el.style.display = "none");
 
-/* ---------- Smart Search (theses only) ---------- */
-/**
- * Cached-first search:
- *  1) Use KV cache via /api/harvest → fast results
- *  2) Trigger background incremental harvest (theses)
- *  3) After harvest, auto-refresh same query without re-harvesting
- */
+// ===============================
+// MAIN SEARCH (cached-first + background incremental harvest)
+// ===============================
 async function smartSearch(page = 1, options = {}) {
   const { runHarvest = true } = options;
   currentPage = page;
 
   const progress = qs("#progressBar");
   const progressContainer = qs(".progress-bar");
+
   if (progress && progressContainer) {
     progressContainer.style.display = "block";
     progress.style.width = "25%";
@@ -38,23 +37,19 @@ async function smartSearch(page = 1, options = {}) {
   showLoadingState();
 
   console.log(
-    `🔍 Smart Search (theses only): page=${page}, query="${currentQuery}", runHarvest=${runHarvest}`
+    `🔍 Smart Search: page=${page}, query="${currentQuery}", runHarvest=${runHarvest}`
   );
 
   try {
-    const apiUrl = `${API_BASE}/harvest`;
-    const body = {
-      category: "theses",
-      query: currentQuery,
-      page: currentPage,
-      pageSize: PAGE_SIZE,
-      filters: currentFilters,
-    };
-
-    const res = await fetch(apiUrl, {
+    const res = await fetch(`${API_BASE}/harvest`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        query: currentQuery,
+        page: currentPage,
+        pageSize: PAGE_SIZE,
+        filters: currentFilters,
+      }),
     });
 
     if (!res.ok) {
@@ -73,7 +68,6 @@ async function smartSearch(page = 1, options = {}) {
     }
 
     renderResults(data.results);
-
     renderFilters(data.facets);
     show(qs("#filtersSidebar"));
 
@@ -81,7 +75,7 @@ async function smartSearch(page = 1, options = {}) {
     totalPages = Math.ceil(totalRecords / PAGE_SIZE);
     updatePagination(data.page, totalPages, totalRecords);
 
-    if (progress && progressContainer) {
+    if (progress) {
       progress.style.width = "100%";
       setTimeout(() => {
         progressContainer.style.display = "none";
@@ -89,7 +83,7 @@ async function smartSearch(page = 1, options = {}) {
       }, 500);
     }
 
-    // Background incremental harvest → then refresh
+    // Background incremental harvest (live refresh)
     if (runHarvest) {
       triggerAutoHarvest(true);
     }
@@ -103,20 +97,9 @@ async function smartSearch(page = 1, options = {}) {
   }
 }
 
-function showLoadingState() {
-  const c = qs("#dataCardsContainer");
-  if (!c) return;
-
-  c.innerHTML = `
-    <div class="loading-state">
-      <i class="fas fa-spinner fa-spin"></i>
-      <h3>Loading Theses & Dissertations</h3>
-      <p>Searching harvested records from South African institutional repositories...</p>
-    </div>`;
-}
-
-/* ---------- Auto-Harvest (incremental) ---------- */
-
+// ===============================
+// Background incremental harvest
+// ===============================
 async function triggerAutoHarvest(refreshAfter = false) {
   const now = Date.now();
 
@@ -128,13 +111,13 @@ async function triggerAutoHarvest(refreshAfter = false) {
     return { skipped: true };
   }
 
-  console.log("🔄 Background incremental harvest for theses…");
+  console.log("🔄 Background incremental harvest (theses only)…");
 
   try {
     const response = await fetch(`${API_BASE}/harvest-incremental`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category: "theses" }),
+      body: JSON.stringify({}), // no extra params needed for theses-only
     });
 
     const result = await response.json();
@@ -145,7 +128,7 @@ async function triggerAutoHarvest(refreshAfter = false) {
       showHarvestNotification(result.newRecords || 0);
       setTimeout(() => checkSystemHealth(), 2000);
 
-      if (refreshAfter && result.newRecords > 0) {
+      if (refreshAfter && (result.newRecords || 0) > 0) {
         console.log("🔁 Refreshing search results after live harvest…");
         smartSearch(currentPage, { runHarvest: false });
       }
@@ -166,7 +149,7 @@ function showHarvestNotification(newRecords) {
   const notification = qs("#harvestNotification");
   if (!notification) return;
 
-  notification.textContent = `🔄 Added ${newRecords} new theses/dissertations from live sources`;
+  notification.textContent = `🔄 Added ${newRecords} new records from live sources`;
   notification.style.display = "block";
 
   setTimeout(() => {
@@ -174,14 +157,12 @@ function showHarvestNotification(newRecords) {
   }, 3000);
 }
 
-/* ---------- render: results ---------- */
-
+// ===============================
+// Render results
+// ===============================
 function renderResults(records = []) {
   const c = qs("#dataCardsContainer");
-  if (!c) {
-    console.error("Could not find dataCardsContainer");
-    return;
-  }
+  if (!c) return;
 
   c.innerHTML = "";
 
@@ -190,7 +171,7 @@ function renderResults(records = []) {
       <div class="no-results">
         <i class="fas fa-database"></i>
         <h3>No Results Found</h3>
-        <p>No theses/dissertations match this search. Try different keywords or filters.</p>
+        <p>No theses or dissertations matched your query. Try a different keyword, title, or author.</p>
       </div>`;
     hide(qs("#pagination"));
     return;
@@ -206,7 +187,7 @@ function renderResults(records = []) {
         : r.authors || "";
       const desc = (r.description || "").trim();
       const title = r.title || "Untitled";
-      const source = r.source || "Unknown";
+      const source = r.source || "Unknown repository";
       const type = r.type || "Thesis/Dissertation";
       const year = r.year || "—";
       const identifier = r.identifier || "—";
@@ -245,11 +226,11 @@ function renderResults(records = []) {
               ${
                 hasValidUrl
                   ? `<a class="btn sm" href="${url}" target="_blank" rel="noopener">
-                       <i class="fas fa-external-link-alt"></i> Open
-                     </a>`
+                      <i class="fas fa-external-link-alt"></i> Open
+                    </a>`
                   : `<span class="btn sm disabled">
-                       <i class="fas fa-unlink"></i> No URL
-                     </span>`
+                      <i class="fas fa-unlink"></i> No URL
+                    </span>`
               }
               <input class="select-record" type="checkbox" data-record="${recJSON}">
             </div>
@@ -270,30 +251,46 @@ function renderResults(records = []) {
   show(qs("#pagination"));
 }
 
-/* ---------- selected records count ---------- */
+// ===============================
+// Loading / error states
+// ===============================
+function showLoadingState() {
+  const c = qs("#dataCardsContainer");
+  if (!c) return;
 
-function updateSelectedCount() {
-  selectedCount = qsa(".select-record:checked").length;
-  const risBtn = qs("#bulkRisButton");
-
-  if (risBtn) {
-    if (selectedCount > 0) {
-      risBtn.style.display = "flex";
-      risBtn.innerHTML = `<i class="fas fa-download"></i> Export RIS (${selectedCount})`;
-    } else {
-      risBtn.style.display = "none";
-    }
-  }
+  c.innerHTML = `
+    <div class="loading-state">
+      <i class="fas fa-spinner fa-spin"></i>
+      <h3>Loading Theses & Dissertations</h3>
+      <p>Searching South African institutional repositories…</p>
+    </div>`;
 }
 
-/* ---------- filters ---------- */
+function renderError(msg) {
+  const c = qs("#dataCardsContainer");
+  if (!c) return;
 
+  c.innerHTML = `
+    <div class="error-state">
+      <i class="fas fa-exclamation-triangle"></i>
+      <h3>Error Loading Data</h3>
+      <p>${msg}</p>
+      <p><small>Check the console for more details.</small></p>
+    </div>`;
+
+  hide(qs("#pagination"));
+}
+
+// ===============================
+// Filters
+// ===============================
 function renderFilters(facets) {
   const wrap = qs("#filtersWrap");
   if (!facets || !wrap) return;
 
   const years = facets.years || [];
   const repositories = facets.repositories || [];
+  const types = facets.types || [];
 
   wrap.innerHTML = `
     <div class="filter">
@@ -317,11 +314,22 @@ function renderFilters(facets) {
       </select>
     </div>
     <div class="filter">
+      <label>Type</label>
+      <select id="fltType">
+        <option value="">All Types</option>
+        ${types
+          .map(
+            (t) => `<option value="${t.name}">${t.name} (${t.count})</option>`
+          )
+          .join("")}
+      </select>
+    </div>
+    <div class="filter">
       <label>Author contains</label>
       <input id="fltAuthor" type="text" placeholder="e.g. Smith" />
     </div>
     <button id="applyFilters" class="btn sm"><i class="fa-solid fa-filter"></i> Apply Filters</button>
-  `;
+  ";
 
   const applyBtn = qs("#applyFilters");
   if (applyBtn) {
@@ -329,6 +337,7 @@ function renderFilters(facets) {
       currentFilters = {
         year: qs("#fltYear").value,
         repository: qs("#fltRepo").value,
+        type: qs("#fltType").value,
         author: qs("#fltAuthor").value,
       };
       console.log("🎯 Applying filters:", currentFilters);
@@ -337,8 +346,9 @@ function renderFilters(facets) {
   }
 }
 
-/* ---------- pagination ---------- */
-
+// ===============================
+// Pagination
+// ===============================
 function updatePagination(page, computedTotalPages, total) {
   currentPage = page;
   totalPages = computedTotalPages || 1;
@@ -354,63 +364,22 @@ function updatePagination(page, computedTotalPages, total) {
   if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
 }
 
-/* ---------- System Health Monitoring ---------- */
+// ===============================
+// Selected records / RIS export
+// ===============================
+function updateSelectedCount() {
+  selectedCount = qsa(".select-record:checked").length;
+  const risBtn = qs("#bulkRisButton");
 
-async function checkSystemHealth() {
-  try {
-    const res = await fetch(`${API_BASE}/health`);
-    const data = await res.json();
-    updateSystemInfo(data);
-
-    if (data.harvest?.last_harvest && data.harvest.last_harvest !== "Never") {
-      lastHarvestTime = new Date(data.harvest.last_harvest).getTime();
+  if (risBtn) {
+    if (selectedCount > 0) {
+      risBtn.style.display = "flex";
+      risBtn.innerHTML = `<i class="fas fa-download"></i> Export RIS (${selectedCount})`;
+    } else {
+      risBtn.style.display = "none";
     }
-  } catch (e) {
-    console.error("Health check failed:", e);
-    updateSystemInfo({ error: "Health check failed" });
   }
 }
-
-function updateSystemInfo(data) {
-  const el = qs("#systemInfo");
-  if (!el) return;
-
-  if (data.error) {
-    el.innerHTML = `<span style="color: #dc3545;">❌ ${data.error}</span>`;
-    return;
-  }
-
-  const healthData = data.data || {};
-  const lastHarvest = data.harvest?.last_harvest
-    ? new Date(data.harvest.last_harvest).toLocaleString()
-    : "Never";
-
-  el.innerHTML = `
-    <div><b>Total Theses/Dissertations:</b> ${healthData.theses?.toLocaleString() || 0}</div>
-    <div><b>Repositories:</b> ${data.repositories?.academic || 0}</div>
-    <div><b>Last Harvest:</b> ${lastHarvest}</div>
-    <div><b>Next Harvest:</b> ${data.harvest?.next_harvest || "Daily at 2 AM"}</div>
-  `;
-}
-
-/* ---------- error ---------- */
-
-function renderError(msg) {
-  const c = qs("#dataCardsContainer");
-  if (!c) return;
-
-  c.innerHTML = `
-    <div class="error-state">
-      <i class="fas fa-exclamation-triangle"></i>
-      <h3>Error Loading Data</h3>
-      <p>${msg}</p>
-      <p><small>Check the console for more details.</small></p>
-    </div>`;
-
-  hide(qs("#pagination"));
-}
-
-/* ---------- bulk RIS ---------- */
 
 async function exportRIS() {
   const selected = qsa(".select-record:checked")
@@ -446,7 +415,7 @@ async function exportRIS() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "national_repository_theses.ris";
+    a.download = "national_theses_repository.ris";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -457,36 +426,70 @@ async function exportRIS() {
   }
 }
 
-/* ---------- event listeners ---------- */
+// ===============================
+// System Health
+// ===============================
+async function checkSystemHealth() {
+  try {
+    const res = await fetch(`${API_BASE}/health`);
+    const data = await res.json();
+    updateSystemInfo(data);
 
+    if (data.harvest?.last_harvest && data.harvest.last_harvest !== "Never") {
+      lastHarvestTime = new Date(data.harvest.last_harvest).getTime();
+    }
+  } catch (e) {
+    console.error("Health check failed:", e);
+    updateSystemInfo({ error: "Health check failed" });
+  }
+}
+
+function updateSystemInfo(data) {
+  const el = qs("#systemInfo");
+  if (!el) return;
+
+  if (data.error) {
+    el.innerHTML = `<span style="color: #dc3545;">❌ ${data.error}</span>`;
+    return;
+  }
+
+  const healthData = data.data || {};
+  const lastHarvest = data.harvest?.last_harvest
+    ? new Date(data.harvest.last_harvest).toLocaleString()
+    : "Never";
+
+  el.innerHTML = `
+    <div><b>Records:</b> ${healthData.total_records?.toLocaleString() || 0}</div>
+    <div><b>Theses:</b> ${healthData.theses?.toLocaleString() || 0}</div>
+    <div><b>Last Harvest:</b> ${lastHarvest}</div>
+  `;
+}
+
+// ===============================
+// Init
+// ===============================
 function initializeEventListeners() {
   const searchBtn = qs("#searchBtn");
-  const searchBox = qs("#searchBox");
-  const clearBtn = qs("#clearBtn");
-  const prevBtn = qs("#prevBtn");
-  const nextBtn = qs("#nextBtn");
-  const risBtn = qs("#bulkRisButton");
-
   if (searchBtn) {
     searchBtn.addEventListener("click", () => {
       currentQuery = (qs("#searchBox")?.value || "").trim();
       console.log("Searching for:", currentQuery);
       smartSearch(1);
-      show(clearBtn);
     });
   }
 
+  const searchBox = qs("#searchBox");
   if (searchBox) {
     searchBox.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
         currentQuery = searchBox.value.trim();
         console.log("Searching (Enter):", currentQuery);
         smartSearch(1);
-        show(clearBtn);
       }
     });
   }
 
+  const clearBtn = qs("#clearBtn");
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
       currentQuery = "";
@@ -494,36 +497,39 @@ function initializeEventListeners() {
       if (searchBox) searchBox.value = "";
       console.log("🧹 Clearing search and filters");
       smartSearch(1);
-      hide(clearBtn);
     });
   }
 
+  const prevBtn = qs("#prevBtn");
+  const nextBtn = qs("#nextBtn");
+
   if (prevBtn) {
     prevBtn.addEventListener("click", () => {
-      if (currentPage > 1) smartSearch(currentPage - 1);
+      if (currentPage > 1) {
+        smartSearch(currentPage - 1);
+      }
     });
   }
 
   if (nextBtn) {
     nextBtn.addEventListener("click", () => {
-      if (currentPage < totalPages) smartSearch(currentPage + 1);
+      if (currentPage < totalPages) {
+        smartSearch(currentPage + 1);
+      }
     });
   }
 
+  const risBtn = qs("#bulkRisButton");
   if (risBtn) {
     risBtn.addEventListener("click", exportRIS);
   }
 }
 
-/* ---------- initial load ---------- */
-
 window.addEventListener("DOMContentLoaded", () => {
-  console.log(
-    "🚀 National Theses Repository UI initialised (cached-first + background harvest)"
-  );
+  console.log("🚀 National Theses Repository Harvester initialized");
   initializeEventListeners();
   checkSystemHealth();
-  smartSearch(1); // initial search
+  smartSearch(1); // initial cached search
 
   // Refresh health every 5 minutes
   setInterval(checkSystemHealth, 300000);
