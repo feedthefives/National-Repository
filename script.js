@@ -1,6 +1,3 @@
-// Frontend for National Theses Repository
-// Auto-search with debounce, filters, pagination.
-// Uses the Cloudflare Worker API.
 
 const API_BASE = "https://national-repository.feedthefives.workers.dev/api";
 const PAGE_SIZE = 20;
