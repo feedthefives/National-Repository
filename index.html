@@ -1,244 +1,111 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>National Repository – Theses & Dissertations</title>
+  <title>National Theses Repository</title>
 
-  <!-- Icons -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-  />
-
-  <!-- Styles -->
   <link rel="stylesheet" href="style.css" />
-
-  <style>
-    /* Small tweaks on top of style.css */
-
-    .brand-logo {
-      height: 80px;
-      width: auto;
-      object-fit: contain;
-      transition: transform 0.2s ease;
-    }
-    .brand-logo:hover {
-      transform: scale(1.05);
-    }
-
-    .pagination-controls {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 1rem;
-      margin: 30px 0;
-      font-weight: 500;
-    }
-    .pagination-controls button {
-      background-color: #002c5f;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 8px 14px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: background-color 0.2s ease;
-    }
-    .pagination-controls button:hover {
-      background-color: #01408b;
-    }
-    .pagination-controls button[disabled] {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-    .pagination-controls #pageInfo,
-    .pagination-controls #totalInfo {
-      color: #333;
-      font-size: 14px;
-    }
-
-    .harvest-notification {
-      position: fixed;
-      top: 100px;
-      right: 20px;
-      background: #28a745;
-      color: white;
-      padding: 10px 15px;
-      border-radius: 5px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      z-index: 1000;
-      font-size: 14px;
-      display: none;
-    }
-
-    .system-status {
-      margin-top: 2rem;
-      padding-top: 1rem;
-      border-top: 1px solid #dee2e6;
-    }
-
-    .system-status h4 {
-      margin-bottom: 0.5rem;
-      font-size: 0.9rem;
-      color: #666;
-    }
-
-    .system-status div {
-      font-size: 0.8rem;
-      color: #666;
-      line-height: 1.4;
-    }
-
-    .source-indicator {
-      text-align: center;
-      margin-top: 0.75rem;
-      color: #666;
-      font-style: italic;
-      padding: 0.5rem;
-      background: #f8f9fa;
-      border-radius: 6px;
-    }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
-  <!-- HEADER -->
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="#">
-        <img
-          class="brand-logo"
-          alt="Logo"
-          src="https://raw.githubusercontent.com/archiverepo1/InquiryBase/main/logo.png"
-        />
-      </a>
-      <div class="header-title">National Repository</div>
-      <div class="header-spacer"></div>
+      <div class="brand-block">
+        <div class="brand-logo-circle">NR</div>
+        <div class="brand-text">
+          <h1>National Repository</h1>
+          <p>South African Theses &amp; Dissertations</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <span class="badge">Beta</span>
+      </div>
     </div>
   </header>
 
-  <main class="container">
-    <!-- SEARCH -->
+  <main class="page">
+    <!-- Search bar -->
     <section class="search-section">
+      <label class="search-label" for="searchInput">
+        Search national theses &amp; dissertations
+      </label>
       <div class="search-row">
         <input
+          id="searchInput"
           class="search-input"
-          id="searchBox"
           type="text"
-          placeholder='Search national theses & dissertations by keyword, title, or author (use quotes "" for exact matches)...'
+          placeholder="Type a keyword, title, or author…"
         />
-        <button class="btn search-btn" id="searchBtn">
-          <i class="fa-solid fa-magnifying-glass"></i> Search
+        <button id="searchButton" class="btn primary-btn">
+          Search
         </button>
       </div>
-
-      <div class="source-indicator">
-        Searching: <strong>South African Institutional Repositories</strong> –
-        <span>Theses &amp; Dissertations only</span>
-      </div>
+      <p class="search-subtitle">
+        Searching: <span class="emphasis">South African Institutional Repositories</span> – Theses &amp; dissertations only
+      </p>
     </section>
 
-    <!-- RESULTS + FILTERS LAYOUT -->
-    <section class="results-section" id="resultsSection">
-      <div class="results-header">
-        <button class="btn refresh-btn" id="clearBtn" style="display:none;">
-          <i class="fa-solid fa-trash"></i> Clear Results
+    <!-- Filters + results -->
+    <section class="content-layout">
+      <aside class="filters-panel">
+        <h2>Filters</h2>
+
+        <div class="filter-group">
+          <label for="yearFilter">Year</label>
+          <select id="yearFilter">
+            <option value="">All years</option>
+          </select>
+        </div>
+
+        <div class="filter-group">
+          <label for="institutionFilter">Institution</label>
+          <select id="institutionFilter">
+            <option value="">All institutions</option>
+          </select>
+        </div>
+
+        <button id="clearFilters" class="btn ghost-btn small-btn">
+          Clear filters
         </button>
-      </div>
 
-      <div class="results-layout">
-        <!-- Filters sidebar -->
-        <aside class="filters-sidebar" id="filtersSidebar" style="display:none;">
-          <h4 class="filters-title">
-            <i class="fa-solid fa-filter"></i> Filters
-          </h4>
-          <div class="filters" id="filtersWrap"><!-- built by JS --></div>
-
-          <div class="system-status">
-            <h4><i class="fas fa-info-circle"></i> System Info</h4>
-            <div id="systemInfo">Loading system status...</div>
-          </div>
-        </aside>
-
-        <!-- Results column -->
-        <div class="results-main">
-          <div class="progress-bar">
-            <div class="progress" id="progressBar"></div>
-          </div>
-
-          <div class="data-cards-container" id="dataCardsContainer">
-            <!-- JS renders here -->
-          </div>
-
-          <!-- Pagination -->
-          <div id="pagination" class="pagination-controls" style="display:none;">
-            <button id="prevBtn" disabled>← Prev</button>
-            <span id="pageInfo">Page 1</span>
-            <button id="nextBtn" disabled>Next →</button>
-            <span id="totalInfo"></span>
+        <div class="status-box">
+          <div class="status-label">System status</div>
+          <div id="systemStatus" class="status-body">
+            Loading…
           </div>
         </div>
-      </div>
-    </section>
+      </aside>
 
-    <!-- ZOTERO CARD -->
-    <section class="zotero-card">
-      <div class="zotero-head">
-        <div class="zotero-mark">Z</div>
-        <div class="zotero-copy">
-          <h3>Your Referencing Manager: Zotero</h3>
-          <p>
-            Zotero is a free, open-source tool for collecting, organizing,
-            citing, and sharing research. Save references directly from your
-            browser, organize them into collections, and sync across devices.
-          </p>
+      <section class="results-panel">
+        <div class="results-header">
+          <div id="resultsSummary" class="results-summary">
+            Start typing to search theses…
+          </div>
         </div>
-      </div>
-      <div class="zotero-actions">
-        <a href="https://www.zotero.org/" target="_blank">
-          <i class="fa-solid fa-globe"></i> Visit Zotero
-        </a>
-        <a
-          href="https://www.youtube.com/watch?v=JG7Uq_JFDzE"
-          target="_blank">
-          <i class="fa-brands fa-youtube"></i> Tutorial 1
-        </a>
-        <a
-          href="https://www.youtube.com/watch?v=9tnWWiX7VbU"
-          target="_blank">
-          <i class="fa-brands fa-youtube"></i> Tutorial 2
-        </a>
-      </div>
+
+        <div id="resultsGrid" class="cards-grid">
+          <!-- Cards rendered by JS -->
+        </div>
+
+        <div id="pagination" class="pagination" style="display:none;">
+          <button id="prevPage" class="btn ghost-btn small-btn" disabled>&laquo; Prev</button>
+          <span id="pageInfo" class="page-info"></span>
+          <button id="nextPage" class="btn ghost-btn small-btn" disabled>Next &raquo;</button>
+        </div>
+      </section>
     </section>
   </main>
 
-  <!-- FOOTER -->
-  <div class="top-footer">
-    <div class="top-footer-content">
-      <div class="copyright">
-        © 2025 National Theses Repository Harvester. All rights reserved.
-      </div>
-      <button
-        class="email-button"
-        onclick="window.location.href='mailto:contact@qdataresearch.com?subject=National%20Repository%20Inquiry'">
-        Email Us
-      </button>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span>&copy; 2025 National Theses Repository Harvester.</span>
+      <span>Built on South African DSpace repositories.</span>
     </div>
-  </div>
+  </footer>
 
-  <footer class="footer">South African Theses &amp; Dissertations Harvester</footer>
-
-  <!-- Floating bulk RIS export -->
-  <button id="bulkRisButton" class="bulk-ris-btn" style="display:none;">
-    <i class="fa-solid fa-file-export"></i> Export Selected RIS
-  </button>
-
-  <!-- Harvest Notification -->
-  <div id="harvestNotification" class="harvest-notification"></div>
-
-  <!-- Main app script -->
   <script src="script.js"></script>
 </body>
 </html>
