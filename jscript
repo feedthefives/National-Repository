@@ -2,7 +2,6 @@
 const API_BASE = "https://inquirybase.archiverepo1.workers.dev/api";
 const PAGE_SIZE = 24;
 
-let currentCategory = "theses";
 let currentQuery = "";
 let currentPage = 1;
 let currentFilters = {};
@@ -21,14 +20,26 @@ const hide = (el) => el && (el.style.display = "none");
 function updateSourceIndicator() {
   const sourceIndicator = qs("#sourceIndicator");
   const currentSource = qs("#currentSource");
-  
+  const liveBadge = qs("#liveBadge");
+
   if (!sourceIndicator || !currentSource) return;
-  
+
   show(sourceIndicator);
-  currentSource.textContent = "South African University Theses";
+  currentSource.textContent = "South African DSpace theses & dissertations";
+
+  if (liveBadge) {
+    liveBadge.textContent = "Cached + Live Incremental Harvest";
+    show(liveBadge);
+  }
 }
 
-/* ---------- Smart Search ---------- */
+/* ---------- Smart Search: cached-first + background incremental harvest ---------- */
+/**
+ * Flow:
+ *  1) Query KV cache via /api/harvest → show results immediately
+ *  2) Optionally trigger background incremental harvest
+ *  3) After harvest completes, re-run same search (without re-triggering harvest)
+ */
 async function smartSearch(page = 1, options = {}) {
   const { runHarvest = true } = options;
 
@@ -44,12 +55,14 @@ async function smartSearch(page = 1, options = {}) {
   updateSourceIndicator();
   showLoadingState();
 
-  console.log(`🔍 Smart Search: category=${currentCategory}, page=${page}, query="${currentQuery}", runHarvest=${runHarvest}`);
+  console.log(
+    `🔍 Theses search (cached-first): page=${page}, query="${currentQuery}", runHarvest=${runHarvest}`
+  );
 
   try {
     const apiUrl = `${API_BASE}/harvest`;
     const requestBody = {
-      category: currentCategory,
+      category: "theses",
       query: currentQuery,
       page: currentPage,
       pageSize: PAGE_SIZE,
@@ -77,7 +90,10 @@ async function smartSearch(page = 1, options = {}) {
       throw new Error("Invalid response format: results array missing");
     }
 
+    // Render cached results
     renderResults(data.results);
+
+    // Filters
     renderFilters(data.facets);
     show(qs("#filtersSidebar"));
 
@@ -93,8 +109,9 @@ async function smartSearch(page = 1, options = {}) {
       }, 500);
     }
 
+    // After cached results are shown: background incremental harvest
     if (runHarvest) {
-      triggerAutoHarvest(currentCategory, true);
+      triggerAutoHarvest(true);
     }
   } catch (e) {
     console.error("❌ Search error:", e);
@@ -104,6 +121,71 @@ async function smartSearch(page = 1, options = {}) {
       progressContainer.style.display = "none";
     }
   }
+}
+
+/* ---------- Auto-Harvest System (background incremental refresh) ---------- */
+async function triggerAutoHarvest(refreshAfter = false) {
+  const now = Date.now();
+
+  if (now - lastHarvestTime < HARVEST_INTERVAL) {
+    console.log(
+      "⏱️  Skipping live harvest – using cached data. Last harvest:",
+      new Date(lastHarvestTime).toLocaleTimeString()
+    );
+    return { skipped: true };
+  }
+
+  console.log(
+    `🔄 Background incremental harvest for category: theses, refreshAfter=${refreshAfter}`
+  );
+
+  try {
+    const response = await fetch(`${API_BASE}/harvest-incremental`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: "theses" }),
+    });
+
+    const result = await response.json();
+    console.log("📥 Incremental harvest result:", result);
+
+    if (result.success) {
+      lastHarvestTime = now;
+      console.log(`✅ Incremental harvest completed: ${result.newRecords} new records`);
+
+      showHarvestNotification(result.newRecords);
+
+      // Refresh system health info
+      setTimeout(() => checkSystemHealth(), 2000);
+
+      // Auto-refresh results without re-triggering harvest
+      if (refreshAfter && result.newRecords > 0) {
+        console.log("🔁 Refreshing search results after live harvest…");
+        smartSearch(currentPage, { runHarvest: false });
+      }
+    } else {
+      console.error("❌ Incremental harvest failed:", result.error);
+    }
+
+    return result;
+  } catch (error) {
+    console.error("❌ Auto-harvest request failed:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+function showHarvestNotification(newRecords) {
+  if (!newRecords || newRecords === 0) return;
+
+  const notification = qs("#harvestNotification");
+  if (!notification) return;
+
+  notification.textContent = `🔄 Added ${newRecords} new theses/dissertations from live sources`;
+  notification.style.display = "block";
+
+  setTimeout(() => {
+    notification.style.display = "none";
+  }, 3000);
 }
 
 /* ---------- render: results ---------- */
@@ -120,14 +202,14 @@ function renderResults(records = []) {
     c.innerHTML = `
       <div class="no-results">
         <i class="fas fa-database"></i>
-        <h3>No Theses Found</h3>
-        <p>No theses or dissertations found matching your search criteria.</p>
+        <h3>No Results Found</h3>
+        <p>No theses or dissertations found. Try a different search term or filter.</p>
       </div>`;
     hide(qs("#pagination"));
     return;
   }
 
-  console.log(`🎨 Rendering ${records.length} theses`);
+  console.log(`🎨 Rendering ${records.length} records`);
 
   for (const r of records) {
     try {
@@ -143,16 +225,6 @@ function renderResults(records = []) {
       const identifier = r.identifier || "—";
       const url = r.url || "#";
 
-      // DSpace-CRIS specific fields
-      const degree = r.degree ? `<p class="card-degree"><b>Degree:</b> ${r.degree}</p>` : "";
-      const advisor = r.advisor && r.advisor.length > 0 
-        ? `<p class="card-advisor"><b>Advisor:</b> ${r.advisor.join(", ")}</p>` 
-        : "";
-      const department = r.department 
-        ? `<p class="card-department"><b>Department:</b> ${r.department}</p>` 
-        : "";
-
-      // URL validation
       const hasValidUrl =
         url &&
         url !== "#" &&
@@ -169,9 +241,6 @@ function renderResults(records = []) {
           <div class="card-body">
             <h3 class="card-title">${title}</h3>
             ${authors ? `<p class="card-authors">${authors}</p>` : ""}
-            ${degree}
-            ${advisor}
-            ${department}
             ${
               desc
                 ? `<p class="card-description">${
@@ -189,11 +258,11 @@ function renderResults(records = []) {
               ${
                 hasValidUrl
                   ? `<a class="btn sm" href="${url}" target="_blank" rel="noopener">
-                  <i class="fas fa-external-link-alt"></i> Open
-                </a>`
+                      <i class="fas fa-external-link-alt"></i> Open
+                    </a>`
                   : `<span class="btn sm disabled">
-                  <i class="fas fa-unlink"></i> No URL
-                </span>`
+                      <i class="fas fa-unlink"></i> No URL
+                    </span>`
               }
               <input class="select-record" type="checkbox" data-record="${recJSON}">
             </div>
@@ -202,11 +271,10 @@ function renderResults(records = []) {
       `
       );
     } catch (err) {
-      console.error("Error rendering thesis:", err, r);
+      console.error("Error rendering record:", err, r);
     }
   }
 
-  // Add event listeners to checkboxes
   qsa(".select-record").forEach((cb) => {
     cb.addEventListener("change", updateSelectedCount);
   });
@@ -222,16 +290,9 @@ function showLoadingState() {
   c.innerHTML = `
     <div class="loading-state">
       <i class="fas fa-spinner fa-spin"></i>
-      <h3>Searching Theses & Dissertations</h3>
-      <p>Scanning South African university repositories...</p>
+      <h3>Loading Theses & Dissertations</h3>
+      <p>Searching harvested South African DSpace repositories...</p>
     </div>`;
-}
-
-function getCategoryDisplayName(category) {
-  const names = {
-    theses: "Theses & Dissertations",
-  };
-  return names[category] || category;
 }
 
 /* ---------- selected records count ---------- */
@@ -255,7 +316,7 @@ function renderFilters(facets) {
   if (!facets || !wrap) return;
 
   const years = facets.years || [];
-  const universities = facets.repositories || [];
+  const repositories = facets.repositories || [];
   const types = facets.types || [];
 
   wrap.innerHTML = `
@@ -269,10 +330,10 @@ function renderFilters(facets) {
       </select>
     </div>
     <div class="filter">
-      <label>University</label>
-      <select id="fltUni">
-        <option value="">All Universities</option>
-        ${universities
+      <label>Repository</label>
+      <select id="fltRepo">
+        <option value="">All Repositories</option>
+        ${repositories
           .map(
             (r) => `<option value="${r.name}">${r.name} (${r.count})</option>`
           )
@@ -295,14 +356,14 @@ function renderFilters(facets) {
       <input id="fltAuthor" type="text" placeholder="e.g. Smith" />
     </div>
     <button id="applyFilters" class="btn sm"><i class="fa-solid fa-filter"></i> Apply Filters</button>
-  `;
+  ];
 
   const applyBtn = qs("#applyFilters");
   if (applyBtn) {
     applyBtn.onclick = () => {
       currentFilters = {
         year: qs("#fltYear").value,
-        repository: qs("#fltUni").value,
+        repository: qs("#fltRepo").value,
         type: qs("#fltType").value,
         author: qs("#fltAuthor").value,
       };
@@ -323,7 +384,7 @@ function updatePagination(page, computedTotalPages, total) {
   const nextBtn = qs("#nextBtn");
 
   if (pageInfo) pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
-  if (totalInfo) totalInfo.textContent = `${total} theses`;
+  if (totalInfo) totalInfo.textContent = `${total} records`;
   if (prevBtn) prevBtn.disabled = currentPage <= 1;
   if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
 }
@@ -352,15 +413,13 @@ function initializeEventListeners() {
     });
   }
 
-  // Tabs
+  // Single tab (just re-triggers search)
   qsa(".tab").forEach((btn) => {
     btn.addEventListener("click", () => {
       qsa(".tab").forEach((t) => t.classList.remove("active"));
       btn.classList.add("active");
-      currentCategory = btn.dataset.type;
       currentPage = 1;
-      console.log("📁 Switching to category:", currentCategory);
-      updateSourceIndicator();
+      console.log("📁 Theses tab selected");
       smartSearch(1);
     });
   });
@@ -405,63 +464,6 @@ function initializeEventListeners() {
   }
 }
 
-/* ---------- Auto-Harvest System ---------- */
-async function triggerAutoHarvest(category, refreshAfter = false) {
-  const now = Date.now();
-
-  if (now - lastHarvestTime < HARVEST_INTERVAL) {
-    console.log("⏱️  Skipping live harvest – using cached data. Last harvest:", new Date(lastHarvestTime).toLocaleTimeString());
-    return { skipped: true };
-  }
-
-  console.log(`🔄 Background incremental harvest for category: ${category}, refreshAfter=${refreshAfter}`);
-
-  try {
-    const response = await fetch(`${API_BASE}/harvest-incremental`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category }),
-    });
-
-    const result = await response.json();
-    console.log("📥 Incremental harvest result:", result);
-
-    if (result.success) {
-      lastHarvestTime = now;
-      console.log(`✅ Incremental harvest completed: ${result.newRecords} new records`);
-
-      showHarvestNotification(result.newRecords);
-      setTimeout(() => checkSystemHealth(), 2000);
-
-      if (refreshAfter && result.newRecords > 0) {
-        console.log("🔁 Refreshing search results after live harvest…");
-        smartSearch(currentPage, { runHarvest: false });
-      }
-    } else {
-      console.error("❌ Incremental harvest failed:", result.error);
-    }
-
-    return result;
-  } catch (error) {
-    console.error("❌ Auto-harvest request failed:", error);
-    return { success: false, error: error.message };
-  }
-}
-
-function showHarvestNotification(newRecords) {
-  if (!newRecords || newRecords === 0) return;
-
-  const notification = qs("#harvestNotification");
-  if (!notification) return;
-
-  notification.textContent = `🔄 Added ${newRecords} new theses from university repositories`;
-  notification.style.display = "block";
-
-  setTimeout(() => {
-    notification.style.display = "none";
-  }, 3000);
-}
-
 /* ---------- bulk RIS ---------- */
 async function exportRIS() {
   const selected = qsa(".select-record:checked")
@@ -476,11 +478,11 @@ async function exportRIS() {
     .filter((record) => record !== null);
 
   if (!selected.length) {
-    alert("Select at least one thesis.");
+    alert("Select at least one record.");
     return;
   }
 
-  console.log(`Exporting ${selected.length} theses to RIS`);
+  console.log(`Exporting ${selected.length} records to RIS`);
 
   try {
     const res = await fetch(`${API_BASE}/ris`, {
@@ -497,7 +499,7 @@ async function exportRIS() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "sa_theses_export.ris";
+    a.download = "theses_harvest_export.ris";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -539,9 +541,9 @@ function updateSystemInfo(data) {
     : "Never";
 
   el.innerHTML = `
-    <div><b>Total Theses:</b> ${healthData.total_records?.toLocaleString() || 0}</div>
-    <div><b>Universities:</b> ${data.repositories?.total || 0}</div>
-    <div><b>Last Harvest:</b> ${lastHarvest}</div>
+    <div><b>Total records:</b> ${healthData.total_records?.toLocaleString() || 0}</div>
+    <div><b>Theses & dissertations:</b> ${healthData.theses?.toLocaleString() || 0}</div>
+    <div><b>Last harvest:</b> ${lastHarvest}</div>
   `;
 }
 
@@ -553,7 +555,7 @@ function renderError(msg) {
   c.innerHTML = `
     <div class="error-state">
       <i class="fas fa-exclamation-triangle"></i>
-      <h3>Error Loading Theses</h3>
+      <h3>Error Loading Data</h3>
       <p>${msg}</p>
       <p><small>Check the console for more details.</small></p>
     </div>`;
@@ -563,17 +565,19 @@ function renderError(msg) {
 
 /* ---------- initial load ---------- */
 window.addEventListener("DOMContentLoaded", () => {
-  console.log("🚀 SA Theses Harvester initialized");
+  console.log(
+    "🚀 Theses & Dissertations Harvester initialized (cached-first + background incremental harvest)"
+  );
   initializeEventListeners();
   updateSourceIndicator();
   checkSystemHealth();
-  smartSearch(1);
+  smartSearch(1); // initial cached search
 
   // Refresh health every 5 minutes
   setInterval(checkSystemHealth, 300000);
 
   // Auto-harvest every 30 minutes if page remains open
   setInterval(() => {
-    triggerAutoHarvest(currentCategory);
+    triggerAutoHarvest(false);
   }, HARVEST_INTERVAL);
 });
