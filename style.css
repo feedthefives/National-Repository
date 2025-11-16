@@ -34,66 +34,60 @@ body {
   flex-direction: column;
 }
 
-/* Header */
+/* ========================================================= */
+/* HEADER */
+/* ========================================================= */
 
-.site-header {
+.header-bar {
   background: linear-gradient(90deg, var(--blue-dark), #040b1f);
   color: #fff;
+  width: 100%;
+  padding: 14px 0;
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-  position: sticky;
-  top: 0;
-  z-index: 20;
 }
 
 .header-inner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 14px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+  padding: 0 20px;
 
-.brand-block {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.brand-logo-circle {
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  background: var(--red);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  letter-spacing: .05em;
+  position: relative;
+  gap: 14px;
 }
 
-.brand-text h1 {
+.header-logo {
+  height: 52px;       /* Perfectly sized */
+  width: auto;
+  object-fit: contain;
+  position: absolute;
+  left: 20px;          /* Pushes logo to far-left */
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.header-text {
+  text-align: center;
+}
+
+.header-text h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
 }
 
-.brand-text p {
+.header-text h2 {
   margin: 2px 0 0 0;
-  font-size: 12px;
-  opacity: 0.85;
+  font-size: 13px;
+  font-weight: 400;
+  opacity: 0.9;
 }
 
-.header-right .badge {
-  background: rgba(255,255,255,0.1);
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-/* Layout */
+/* ========================================================= */
+/* LAYOUT */
+/* ========================================================= */
 
 .page {
   flex: 1;
@@ -102,7 +96,7 @@ body {
   padding: 18px 20px 32px;
 }
 
-/* Search section */
+/* Search */
 
 .search-section {
   background: var(--card-bg);
@@ -170,8 +164,6 @@ body {
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
-  transform: none;
-  box-shadow: none;
 }
 
 .btn:hover:not(:disabled) {
@@ -200,7 +192,9 @@ body {
   font-size: 12px;
 }
 
-/* Content layout */
+/* ========================================================= */
+/* CONTENT LAYOUT */
+/* ========================================================= */
 
 .content-layout {
   display: grid;
@@ -208,7 +202,9 @@ body {
   gap: 18px;
 }
 
-/* Filters panel */
+/* ========================================================= */
+/* FILTER PANEL */
+/* ========================================================= */
 
 .filters-panel {
   background: var(--card-bg);
@@ -216,6 +212,10 @@ body {
   box-shadow: var(--shadow-sm);
   padding: 16px 14px 14px;
   align-self: flex-start;
+}
+
+.filters-panel.hidden {
+  display: none;
 }
 
 .filters-panel h2 {
@@ -261,13 +261,19 @@ body {
   color: var(--text-main);
 }
 
-/* Results panel */
+/* ========================================================= */
+/* RESULTS PANEL */
+/* ========================================================= */
 
 .results-panel {
   background: var(--card-bg);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 14px 16px 16px;
+}
+
+.results-panel.hidden {
+  display: none;
 }
 
 .results-header {
@@ -289,13 +295,15 @@ body {
   margin-top: 10px;
 }
 
-/* Cards */
+/* ========================================================= */
+/* CARDS */
+/* ========================================================= */
 
 .card {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: #fff;
-  padding: 12px 12px 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -423,8 +431,13 @@ body {
 @media (max-width: 640px) {
   .header-inner {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: 6px;
+  }
+  .header-logo {
+    position: static;
+    transform: none;
+    margin-bottom: 6px;
   }
   .page {
     padding: 14px 12px 24px;
@@ -432,8 +445,5 @@ body {
   .search-row {
     flex-direction: column;
     align-items: stretch;
-  }
-  .search-input {
-    border-radius: 999px;
   }
 }
