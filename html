@@ -1,0 +1,268 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Library</title>
+
+  <!-- Icons -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css" />
+
+  <style>
+    /* ========== Header Logo Resize ========== */
+    .brand-logo {
+      height: 80px;
+      width: auto;
+      object-fit: contain;
+      transition: transform 0.2s ease;
+    }
+    .brand-logo:hover {
+      transform: scale(1.05);
+    }
+
+    /* ========== Pagination ========== */
+    .pagination-controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      margin: 30px 0;
+      font-weight: 500;
+    }
+    .pagination-controls button {
+      background-color: #002c5f;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s ease;
+    }
+    .pagination-controls button:hover {
+      background-color: #01408b;
+    }
+    .pagination-controls button[disabled] {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .pagination-controls #pageInfo,
+    .pagination-controls #totalInfo {
+      color: #333;
+      font-size: 14px;
+    }
+
+    /* ========== Source Indicator ========== */
+    .source-indicator {
+      text-align: center;
+      margin-bottom: 1rem;
+      color: #666;
+      font-style: italic;
+      padding: 0.5rem;
+      background: #f8f9fa;
+      border-radius: 6px;
+      display: none;
+    }
+
+    .live-badge {
+      background: #28a745;
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      margin-left: 0.5rem;
+    }
+
+    /* ========== Harvest Notification ========== */
+    .harvest-notification {
+      position: fixed;
+      top: 100px;
+      right: 20px;
+      background: #28a745;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 5px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      z-index: 1000;
+      font-size: 14px;
+      display: none;
+    }
+
+    /* ========== System Status ========== */
+    .system-status {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #dee2e6;
+    }
+
+    .system-status h4 {
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .system-status div {
+      font-size: 0.8rem;
+      color: #666;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="#">
+        <img
+          class="brand-logo"
+          alt="Logo"
+          src="https://raw.githubusercontent.com/archiverepo1/InquiryBase/main/logo.png"
+        />
+      </a>
+      <div class="header-title">Library</div>
+      <div class="header-spacer"></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- SEARCH -->
+    <section class="search-section">
+      <div class="search-row">
+        <input
+          class="search-input"
+          id="searchBox"
+          type="text"
+          placeholder='Search by keyword, title, or author (use quotes "" for exact matches)...'
+        />
+        <button class="btn search-btn" id="searchBtn">
+          <i class="fa-solid fa-magnifying-glass"></i> Search
+        </button>
+      </div>
+
+      <!-- Source Indicator -->
+      <div id="sourceIndicator" class="source-indicator">
+        Searching: <span id="currentSource">All Sources</span>
+        <span id="liveBadge" class="live-badge" style="display: none;">Live Search</span>
+      </div>
+
+      <!-- Category tabs -->
+      <div class="source-tabs">
+        <button class="tab active" data-type="all">All Sources</button>
+        <button class="tab" data-type="research">Research Data</button>
+        <button class="tab" data-type="articles">Journal Articles</button>
+        <button class="tab" data-type="theses">Theses</button>
+        <button class="tab elis" data-type="elis">E-LIS Repository</button>
+      </div>
+    </section>
+
+    <!-- RESULTS + FILTERS LAYOUT -->
+    <section class="results-section" id="resultsSection">
+      <div class="results-header">
+        <button class="btn refresh-btn" id="clearBtn" style="display:none;">
+          <i class="fa-solid fa-trash"></i> Clear Results
+        </button>
+      </div>
+
+      <div class="results-layout">
+        <!-- Filters sidebar -->
+        <aside class="filters-sidebar" id="filtersSidebar" style="display:none;">
+          <h4 class="filters-title">
+            <i class="fa-solid fa-filter"></i> Filters
+          </h4>
+          <div class="filters" id="filtersWrap"><!-- built by JS --></div>
+          
+          <div class="system-status">
+            <h4><i class="fas fa-info-circle"></i> System Info</h4>
+            <div id="systemInfo">Loading system status...</div>
+          </div>
+        </aside>
+
+        <!-- Results column -->
+        <div class="results-main">
+          <div class="progress-bar">
+            <div class="progress" id="progressBar"></div>
+          </div>
+
+          <div class="data-cards-container" id="dataCardsContainer">
+            <!-- JS renders here -->
+          </div>
+
+          <!-- Pagination -->
+          <div id="pagination" class="pagination-controls" style="display:none;">
+            <button id="prevBtn" disabled>← Prev</button>
+            <span id="pageInfo">Page 1</span>
+            <button id="nextBtn" disabled>Next →</button>
+            <span id="totalInfo"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ZOTERO CARD -->
+    <section class="zotero-card">
+      <div class="zotero-head">
+        <div class="zotero-mark">Z</div>
+        <div class="zotero-copy">
+          <h3>Your Referencing Manager: Zotero</h3>
+          <p>
+            Zotero is a free, open-source tool for collecting, organizing,
+            citing, and sharing research. Save references directly from your
+            browser, organize them into collections, and sync across devices.
+          </p>
+        </div>
+      </div>
+      <div class="zotero-actions">
+        <a href="https://www.zotero.org/" target="_blank">
+          <i class="fa-solid fa-globe"></i> Visit Zotero
+        </a>
+        <a
+          href="https://www.youtube.com/watch?v=JG7Uq_JFDzE"
+          target="_blank">
+          <i class="fa-brands fa-youtube"></i> Tutorial 1
+        </a>
+        <a
+          href="https://www.youtube.com/watch?v=9tnWWiX7VbU"
+          target="_blank">
+          <i class="fa-brands fa-youtube"></i> Tutorial 2
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <div class="top-footer">
+    <div class="top-footer-content">
+      <div class="copyright">
+        © 2025 Academic Library Harvester. All rights reserved.
+      </div>
+      <button
+        class="email-button"
+        onclick="window.location.href='mailto:contact@qdataresearch.com?subject=Academic%20Library%20Harvester%20Inquiry'"
+      >
+        Email Us
+      </button>
+    </div>
+  </div>
+
+  <footer class="footer">Research Data Harvesting System</footer>
+
+  <!-- Floating bulk RIS export -->
+  <button id="bulkRisButton" class="bulk-ris-btn" style="display:none;">
+    <i class="fa-solid fa-file-export"></i> Export Selected RIS
+  </button>
+
+  <!-- Harvest Notification -->
+  <div id="harvestNotification" class="harvest-notification"></div>
+
+  <!-- Main app script -->
+  <script src="script.js"></script>
+</body>
+</html>
