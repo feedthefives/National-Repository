@@ -6,27 +6,24 @@ let currentPage = 1;
 let totalResults = 0;
 
 const qs = sel => document.querySelector(sel);
-const resultsGrid = qs("#resultsGrid");
-const resultsSummary = qs("#resultsSummary");
-const yearFilter = qs("#yearFilter");
-const institutionFilter = qs("#institutionFilter");
-const pageInfo = qs("#pageInfo");
-const prevPageBtn = qs("#prevPage");
-const nextPageBtn = qs("#nextPage");
-const paginationEl = qs("#pagination");
-const statusBox = qs("#systemStatus");
 
-// Panels to hide until data exists
-const filtersPanel = qs("#filtersPanel");
-const resultsPanel = qs("#resultsPanel");
+const resultsGrid        = qs("#resultsGrid");
+const resultsSummary     = qs("#resultsSummary");
+const yearFilter         = qs("#yearFilter");
+const institutionFilter  = qs("#institutionFilter");
+const pageInfo           = qs("#pageInfo");
+const prevPageBtn        = qs("#prevPage");
+const nextPageBtn        = qs("#nextPage");
+const paginationEl       = qs("#pagination");
+const statusBox          = qs("#systemStatus");
+const filtersPanel       = qs("#filtersPanel");
+const resultsPanel       = qs("#resultsPanel");
 
 function setSummary(text) {
   if (resultsSummary) resultsSummary.textContent = text;
 }
 
-// -----------------------------
-// Debounce helper (auto-search)
-// -----------------------------
+// Debounce helper (for live search typing)
 function debounce(fn, delay) {
   let t;
   return (...args) => {
@@ -35,20 +32,16 @@ function debounce(fn, delay) {
   };
 }
 
-// -----------------------------
-// AUTO HARVEST ON PAGE LOAD
-// -----------------------------
+/* ======================= AUTO HARVEST ON LOAD ======================= */
+
 async function autoHarvestOnLoad() {
   try {
     const res = await fetch(`${API_BASE}/auto-harvest`);
     const data = await res.json();
-    console.log("Auto-harvest complete:", data);
+    console.log("Auto-harvest:", data);
 
-    // Now filters + status have data
     await loadFilters();
     await loadHealth();
-
-    // Show initial records (no query filter)
     await loadInitialRecords();
   } catch (err) {
     console.error("Auto-harvest error:", err);
@@ -56,12 +49,17 @@ async function autoHarvestOnLoad() {
   }
 }
 
-// -----------------------------
-// Load initial harvested data
-// -----------------------------
+/* ======================= INITIAL RECORDS ======================= */
+
 async function loadInitialRecords() {
   try {
-    const res = await fetch(`${API_BASE}/search?page=1&pageSize=${PAGE_SIZE}`);
+    const params = new URLSearchParams({
+      page: "1",
+      pageSize: String(PAGE_SIZE)
+      // no q → backend returns all cached records, paginated
+    });
+
+    const res = await fetch(`${API_BASE}/search?${params.toString()}`);
     const data = await res.json();
 
     if (!data.results || data.results.length === 0) {
@@ -82,9 +80,8 @@ async function loadInitialRecords() {
   }
 }
 
-// -----------------------------
-// Load Filters (after auto-harvest)
-// -----------------------------
+/* ======================= FILTERS ======================= */
+
 async function loadFilters() {
   try {
     yearFilter.innerHTML = `<option value="">All years</option>`;
@@ -114,20 +111,23 @@ async function loadFilters() {
   }
 }
 
-// -----------------------------
-// Load Health
-// -----------------------------
+/* ======================= HEALTH ======================= */
+
 async function loadHealth() {
   try {
     const res = await fetch(`${API_BASE}/health`);
     const data = await res.json();
 
     if (data.ok) {
+      const total = data.total_records || 0;
+      const repos = data.repositories || 0;
+      const ts    = data.timestamp;
+
       statusBox.innerHTML = `
-        <div><strong>Total records:</strong> ${data.count.toLocaleString()}</div>
-        <div><strong>Repositories:</strong> ${data.repositories}</div>
+        <div><strong>Total records:</strong> ${total.toLocaleString()}</div>
+        <div><strong>Repositories:</strong> ${repos}</div>
         <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-          Updated: ${new Date(data.time).toLocaleString()}
+          Updated: ${ts ? new Date(ts).toLocaleString() : "—"}
         </div>
       `;
     } else {
@@ -139,9 +139,8 @@ async function loadHealth() {
   }
 }
 
-// -----------------------------
-// Rendering helpers
-// -----------------------------
+/* ======================= RENDER HELPERS ======================= */
+
 function renderLoading() {
   resultsGrid.innerHTML = `
     <div class="empty-state">
@@ -218,9 +217,8 @@ function renderResults(records) {
   }
 }
 
-// -----------------------------
-// Pagination
-// -----------------------------
+/* ======================= PAGINATION ======================= */
+
 function updatePagination() {
   if (!paginationEl) return;
   if (totalResults <= PAGE_SIZE) {
@@ -236,14 +234,14 @@ function updatePagination() {
   nextPageBtn.disabled = currentPage >= totalPages;
 }
 
-// -----------------------------
-// Search
-// -----------------------------
+/* ======================= SEARCH ======================= */
+
 async function performSearch(page = 1) {
-  const q = currentQuery.trim();
+  const q   = currentQuery.trim();
   const year = yearFilter.value;
   const inst = institutionFilter.value;
 
+  // If there's literally nothing to filter by, show basic message
   if (!q && !year && !inst) {
     renderEmpty("Start typing to search theses…");
     paginationEl.style.display = "none";
@@ -257,10 +255,10 @@ async function performSearch(page = 1) {
 
   const params = new URLSearchParams({
     page: String(currentPage),
-    pageSize: String(PAGE_SIZE),
+    pageSize: String(PAGE_SIZE)
   });
 
-  if (q) params.set("q", q);
+  if (q)    params.set("q", q);
   if (year) params.set("year", year);
   if (inst) params.set("institution", inst);
 
@@ -293,21 +291,22 @@ async function performSearch(page = 1) {
 
 const debouncedSearch = debounce(() => performSearch(1), 450);
 
-// -----------------------------
-// Event Listeners
-// -----------------------------
+/* ======================= EVENT WIRING ======================= */
+
 document.addEventListener("DOMContentLoaded", () => {
   autoHarvestOnLoad();
 
   const searchInput = qs("#searchInput");
-  const searchBtn = qs("#searchButton");
+  const searchBtn   = qs("#searchButton");
 
   if (searchInput) {
+    // Live search while typing
     searchInput.addEventListener("input", e => {
       currentQuery = e.target.value || "";
       debouncedSearch();
     });
 
+    // Enter key
     searchInput.addEventListener("keydown", e => {
       if (e.key === "Enter") {
         e.preventDefault();
