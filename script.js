@@ -9,7 +9,6 @@ const $ = sel => document.querySelector(sel);
 
 const resultsGrid = $("#resultsGrid");
 const resultsSummary = $("#resultsSummary");
-
 const filtersPanel = $("#filtersPanel");
 const resultsPanel = $("#resultsPanel");
 
@@ -28,7 +27,7 @@ const statusBox = $("#systemStatus");
 --------------------------------------------------- */
 async function autoHarvestOnLoad() {
   try {
-    await fetch(`${API_BASE}/auto-harvest`);
+    await fetch(`${API_BASE}/harvest-now`);
     await loadFilters();
     await loadHealth();
     await loadInitialRecords();
@@ -46,7 +45,7 @@ async function loadInitialRecords() {
     const data = await res.json();
 
     if (!data.results || data.results.length === 0) {
-      renderEmpty("Start typing to search theses…");
+      renderEmpty("Start typing above to search the national theses repository.");
       return;
     }
 
@@ -58,7 +57,7 @@ async function loadInitialRecords() {
     updatePagination();
   } catch (e) {
     console.error(e);
-    renderError("Failed to load initial data.");
+    renderError("Could not load initial records.");
   }
 }
 
@@ -74,25 +73,26 @@ async function loadFilters() {
     institutionFilter.innerHTML = `<option value="">All institutions</option>`;
 
     data.years.forEach(y => {
-      const o = document.createElement("option");
-      o.value = y;
-      o.textContent = y;
-      yearFilter.append(o);
+      const opt = document.createElement("option");
+      opt.value = y;
+      opt.textContent = y;
+      yearFilter.appendChild(opt);
     });
 
     data.institutions.forEach(inst => {
-      const o = document.createElement("option");
-      o.value = inst;
-      o.textContent = inst;
-      institutionFilter.append(o);
+      const opt = document.createElement("option");
+      opt.value = inst;
+      opt.textContent = inst;
+      institutionFilter.appendChild(opt);
     });
+
   } catch (e) {
-    console.error("Filter load error:", e);
+    console.error("Filter load error", e);
   }
 }
 
 /* ---------------------------------------------------
-   Health status
+   Health
 --------------------------------------------------- */
 async function loadHealth() {
   try {
@@ -100,11 +100,13 @@ async function loadHealth() {
     const data = await res.json();
 
     statusBox.innerHTML = `
-      <div><strong>Total records:</strong> ${data.total_records}</div>
+      <div><strong>Total records:</strong> ${data.total_records.toLocaleString()}</div>
       <div><strong>Repositories:</strong> ${data.repositories}</div>
-      <div style="font-size:11px;color:#6b7280;">Updated: ${new Date(data.timestamp).toLocaleString()}</div>
+      <div style="font-size:11px;color:#6b7280;">Updated: ${new Date(data.time).toLocaleString()}</div>
     `;
-  } catch {
+
+  } catch (e) {
+    console.error("Health load error", e);
     statusBox.textContent = "Could not load system status.";
   }
 }
@@ -118,7 +120,9 @@ function renderResults(records) {
   filtersPanel.classList.remove("hidden");
 
   records.forEach(r => {
-    const authors = Array.isArray(r.authors) ? r.authors.join(", ") : r.authors || "";
+    const authors = Array.isArray(r.authors)
+      ? r.authors.join(", ")
+      : (r.authors || "");
 
     resultsGrid.innerHTML += `
       <article class="card">
@@ -133,8 +137,7 @@ function renderResults(records) {
 
         <div class="card-meta-row">
           <div class="card-meta">
-            ${r.year ? `Year: ${r.year}` : ""}
-            <br>
+            ${r.year ? `Year: ${r.year}<br>` : ""}
             Handle: ${r.url.replace(/^https?:\/\//, "")}
           </div>
 
@@ -142,7 +145,8 @@ function renderResults(records) {
             <a href="${r.url}" target="_blank">View thesis</a>
           </div>
         </div>
-      </article>`;
+      </article>
+    `;
   });
 }
 
@@ -157,7 +161,7 @@ function renderEmpty(msg) {
 function renderError(msg) {
   resultsGrid.innerHTML = `
     <div class="error-state">
-      <h3>Error</h3>
+      <h3>Error loading data</h3>
       <p>${msg}</p>
     </div>`;
 }
@@ -214,39 +218,39 @@ async function performSearch(page = 1) {
     renderResults(data.results);
     updatePagination();
   } catch (e) {
-    console.error(e);
+    console.error("Search error", e);
     renderError("Search failed.");
   }
 }
 
 /* ---------------------------------------------------
-   Debounce for auto-search typing
+   Debounce for live-search
 --------------------------------------------------- */
 function debounce(fn, delay) {
   let t;
-  return function (...args) {
+  return (...args) => {
     clearTimeout(t);
-    t = setTimeout(() => fn.apply(this, args), delay);
+    t = setTimeout(() => fn(...args), delay);
   };
 }
 
-const debouncedSearch = debounce(() => performSearch(1), 300);
+const debouncedSearch = debounce(() => performSearch(1), 400);
 
 /* ---------------------------------------------------
-   Event listeners
+   Event Listeners
 --------------------------------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
   autoHarvestOnLoad();
 
   const searchInput = $("#searchInput");
-  const searchBtn = $("#searchButton");
+  const searchButton = $("#searchButton");
 
   searchInput.addEventListener("input", e => {
     currentQuery = e.target.value;
     debouncedSearch();
   });
 
-  searchBtn.addEventListener("click", () => {
+  searchButton.addEventListener("click", () => {
     currentQuery = searchInput.value;
     performSearch(1);
   });
