@@ -5,203 +5,174 @@ let currentQuery = "";
 let currentPage = 1;
 let totalResults = 0;
 
-const qs = sel => document.querySelector(sel);
+const $ = sel => document.querySelector(sel);
 
-const resultsGrid       = qs("#resultsGrid");
-const resultsSummary    = qs("#resultsSummary");
-const yearFilter        = qs("#yearFilter");
-const institutionFilter = qs("#institutionFilter");
-const pageInfo          = qs("#pageInfo");
-const prevPageBtn       = qs("#prevPage");
-const nextPageBtn       = qs("#nextPage");
-const paginationEl      = qs("#pagination");
-const statusBox         = qs("#systemStatus");
+const resultsGrid = $("#resultsGrid");
+const resultsSummary = $("#resultsSummary");
 
-const filtersPanel      = qs("#filtersPanel");
-const resultsPanel      = qs("#resultsPanel");
+const filtersPanel = $("#filtersPanel");
+const resultsPanel = $("#resultsPanel");
 
-function setSummary(text) {
-  if (resultsSummary) resultsSummary.textContent = text;
-}
+const yearFilter = $("#yearFilter");
+const institutionFilter = $("#institutionFilter");
 
-// Debounce helper for live typing
-function debounce(fn, delay) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), delay);
-  };
-}
+const pageInfo = $("#pageInfo");
+const prevPageBtn = $("#prevPage");
+const nextPageBtn = $("#nextPage");
+const paginationEl = $("#pagination");
 
-// -----------------------------
-// AUTO HARVEST ON PAGE LOAD
-// -----------------------------
+const statusBox = $("#systemStatus");
+
+/* ---------------------------------------------------
+   AUTO HARVEST ON LOAD
+--------------------------------------------------- */
 async function autoHarvestOnLoad() {
   try {
-    const res = await fetch(`${API_BASE}/auto-harvest`);
-    const data = await res.json();
-    console.log("Auto-harvest:", data);
-
-    // Load filters & health after we have some data
+    await fetch(`${API_BASE}/auto-harvest`);
     await loadFilters();
     await loadHealth();
-
-    // We do NOT force initial records here – user starts by typing
-    renderEmpty("Start typing above to search the national theses repository.");
-    setSummary("Start typing to search theses…");
-  } catch (err) {
-    console.error("Auto-harvest error:", err);
-    setSummary("Could not auto-harvest. Try searching manually.");
+    await loadInitialRecords();
+  } catch (e) {
+    console.error("Auto-harvest error:", e);
   }
 }
 
-// -----------------------------
-// Load Filters
-// -----------------------------
+/* ---------------------------------------------------
+   Load initial cached records (no query)
+--------------------------------------------------- */
+async function loadInitialRecords() {
+  try {
+    const res = await fetch(`${API_BASE}/search?page=1&pageSize=${PAGE_SIZE}`);
+    const data = await res.json();
+
+    if (!data.results || data.results.length === 0) {
+      renderEmpty("Start typing to search theses…");
+      return;
+    }
+
+    resultsPanel.classList.remove("hidden");
+    filtersPanel.classList.remove("hidden");
+
+    totalResults = data.total;
+    renderResults(data.results);
+    updatePagination();
+  } catch (e) {
+    console.error(e);
+    renderError("Failed to load initial data.");
+  }
+}
+
+/* ---------------------------------------------------
+   Filters
+--------------------------------------------------- */
 async function loadFilters() {
   try {
-    yearFilter.innerHTML = `<option value="">All years</option>`;
-    institutionFilter.innerHTML = `<option value="">All institutions</option>`;
-
     const res = await fetch(`${API_BASE}/filters`);
     const data = await res.json();
 
-    if (Array.isArray(data.years)) {
-      for (const y of data.years) {
-        const opt = document.createElement("option");
-        opt.value = y;
-        opt.textContent = y;
-        yearFilter.appendChild(opt);
-      }
-    }
-    if (Array.isArray(data.institutions)) {
-      for (const inst of data.institutions) {
-        const opt = document.createElement("option");
-        opt.value = inst;
-        opt.textContent = inst;
-        institutionFilter.appendChild(opt);
-      }
-    }
+    yearFilter.innerHTML = `<option value="">All years</option>`;
+    institutionFilter.innerHTML = `<option value="">All institutions</option>`;
+
+    data.years.forEach(y => {
+      const o = document.createElement("option");
+      o.value = y;
+      o.textContent = y;
+      yearFilter.append(o);
+    });
+
+    data.institutions.forEach(inst => {
+      const o = document.createElement("option");
+      o.value = inst;
+      o.textContent = inst;
+      institutionFilter.append(o);
+    });
   } catch (e) {
-    console.error("Filter load error", e);
+    console.error("Filter load error:", e);
   }
 }
 
-// -----------------------------
-// Load Health
-// -----------------------------
+/* ---------------------------------------------------
+   Health status
+--------------------------------------------------- */
 async function loadHealth() {
   try {
     const res = await fetch(`${API_BASE}/health`);
     const data = await res.json();
 
-    if (data.ok) {
-      statusBox.innerHTML = `
-        <div><strong>Total records:</strong> ${Number(data.count || 0).toLocaleString()}</div>
-        <div><strong>Repositories:</strong> ${data.repositories}</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-          Updated: ${new Date(data.time).toLocaleString()}
-        </div>
-      `;
-    } else {
-      statusBox.textContent = "Status unavailable.";
-    }
-  } catch (e) {
-    console.error("Health error:", e);
+    statusBox.innerHTML = `
+      <div><strong>Total records:</strong> ${data.total_records}</div>
+      <div><strong>Repositories:</strong> ${data.repositories}</div>
+      <div style="font-size:11px;color:#6b7280;">Updated: ${new Date(data.timestamp).toLocaleString()}</div>
+    `;
+  } catch {
     statusBox.textContent = "Could not load system status.";
   }
 }
 
-// -----------------------------
-// Rendering helpers
-// -----------------------------
-function renderLoading() {
-  resultsGrid.innerHTML = `
-    <div class="empty-state">
-      <h3>Searching theses…</h3>
-      <p>Please wait while we query the national repositories.</p>
-    </div>
-  `;
-}
-
-function renderEmpty(message) {
-  resultsGrid.innerHTML = `
-    <div class="empty-state">
-      <h3>No theses found</h3>
-      <p>${message}</p>
-    </div>
-  `;
-}
-
-function renderError(message) {
-  resultsGrid.innerHTML = `
-    <div class="error-state">
-      <h3>Error loading data</h3>
-      <p>${message}</p>
-      <p style="font-size:12px;color:#9b1c1c;">Check console for details.</p>
-    </div>
-  `;
-}
-
+/* ---------------------------------------------------
+   Rendering
+--------------------------------------------------- */
 function renderResults(records) {
-  if (!records || records.length === 0) {
-    renderEmpty("Try a different keyword or remove some filters.");
-    return;
-  }
-
   resultsGrid.innerHTML = "";
   resultsPanel.classList.remove("hidden");
   filtersPanel.classList.remove("hidden");
 
-  for (const r of records) {
-    const authors = Array.isArray(r.authors)
-      ? r.authors.join(", ")
-      : r.authors || "";
+  records.forEach(r => {
+    const authors = Array.isArray(r.authors) ? r.authors.join(", ") : r.authors || "";
 
-    const handle = r.url || r.identifier || "";
+    resultsGrid.innerHTML += `
+      <article class="card">
+        <div class="card-header-top">
+          <span class="card-pill">Thesis</span>
+          <span class="card-inst">${r.institution}</span>
+        </div>
 
-    const card = document.createElement("article");
-    card.className = "card";
-    card.innerHTML = `
-      <div class="card-header-top">
-        <span class="card-pill">Thesis</span>
-        <span class="card-inst">${r.institution || ""}</span>
-      </div>
-      <h3 class="card-title">${r.title || "Untitled thesis"}</h3>
-      ${authors ? `<div class="card-authors">${authors}</div>` : ""}
-      <div class="card-meta-row">
-        <div class="card-meta">
-          ${r.year ? `Year: ${r.year}` : ""}<br/>
-          ${
-            handle
-              ? `Handle: ${String(handle).replace(/^https?:\/\//, "")}`
-              : ""
-          }
+        <h3 class="card-title">${r.title}</h3>
+
+        ${authors ? `<div class="card-authors">${authors}</div>` : ""}
+
+        <div class="card-meta-row">
+          <div class="card-meta">
+            ${r.year ? `Year: ${r.year}` : ""}
+            <br>
+            Handle: ${r.url.replace(/^https?:\/\//, "")}
+          </div>
+
+          <div class="card-actions">
+            <a href="${r.url}" target="_blank">View thesis</a>
+          </div>
         </div>
-        <div class="card-actions">
-          ${
-            r.url
-              ? `<a href="${r.url}" target="_blank" rel="noopener noreferrer">View thesis</a>`
-              : ""
-          }
-        </div>
-      </div>
-    `;
-    resultsGrid.appendChild(card);
-  }
+      </article>`;
+  });
 }
 
-// -----------------------------
-// Pagination
-// -----------------------------
+function renderEmpty(msg) {
+  resultsGrid.innerHTML = `
+    <div class="empty-state">
+      <h3>No theses found</h3>
+      <p>${msg}</p>
+    </div>`;
+}
+
+function renderError(msg) {
+  resultsGrid.innerHTML = `
+    <div class="error-state">
+      <h3>Error</h3>
+      <p>${msg}</p>
+    </div>`;
+}
+
+/* ---------------------------------------------------
+   Pagination
+--------------------------------------------------- */
 function updatePagination() {
-  if (!paginationEl) return;
   if (totalResults <= PAGE_SIZE) {
     paginationEl.style.display = "none";
     return;
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE));
+  const totalPages = Math.ceil(totalResults / PAGE_SIZE);
+
   paginationEl.style.display = "flex";
   pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
 
@@ -209,113 +180,91 @@ function updatePagination() {
   nextPageBtn.disabled = currentPage >= totalPages;
 }
 
-// -----------------------------
-// Search (cache + live harvest on backend)
-// -----------------------------
+/* ---------------------------------------------------
+   Perform search
+--------------------------------------------------- */
 async function performSearch(page = 1) {
-  const q    = currentQuery.trim();
+  currentPage = page;
+
+  const q = currentQuery.trim();
   const year = yearFilter.value;
   const inst = institutionFilter.value;
 
-  if (!q && !year && !inst) {
-    renderEmpty("Start typing to search theses…");
-    paginationEl.style.display = "none";
-    setSummary("Start typing to search theses…");
-    return;
-  }
-
-  currentPage = page;
-  renderLoading();
-  setSummary("Searching national repositories…");
-
   const params = new URLSearchParams({
-    page: String(currentPage),
-    pageSize: String(PAGE_SIZE),
+    page,
+    pageSize: PAGE_SIZE
   });
 
-  if (q)    params.set("q", q);
+  if (q) params.set("q", q);
   if (year) params.set("year", year);
   if (inst) params.set("institution", inst);
 
   try {
-    const res = await fetch(`${API_BASE}/search?${params.toString()}`);
+    const res = await fetch(`${API_BASE}/search?${params}`);
     const data = await res.json();
 
-    totalResults = data.total || 0;
+    totalResults = data.total;
 
-    if (!data.results || totalResults === 0) {
+    if (totalResults === 0) {
       renderEmpty("No theses match your search.");
       paginationEl.style.display = "none";
-      setSummary("0 results.");
       return;
     }
 
     renderResults(data.results);
-    setSummary(
-      `${totalResults.toLocaleString()} result${totalResults === 1 ? "" : "s"} found`
-    );
     updatePagination();
   } catch (e) {
-    console.error("Search error:", e);
-    renderError(e.message || "Unknown error");
-    setSummary("An error occurred while searching.");
+    console.error(e);
+    renderError("Search failed.");
   }
 }
 
-const debouncedSearch = debounce(() => performSearch(1), 450);
+/* ---------------------------------------------------
+   Debounce for auto-search typing
+--------------------------------------------------- */
+function debounce(fn, delay) {
+  let t;
+  return function (...args) {
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
 
-// -----------------------------
-// Event Listeners
-// -----------------------------
+const debouncedSearch = debounce(() => performSearch(1), 300);
+
+/* ---------------------------------------------------
+   Event listeners
+--------------------------------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
   autoHarvestOnLoad();
 
-  const searchInput = qs("#searchInput");
-  const searchBtn   = qs("#searchButton");
+  const searchInput = $("#searchInput");
+  const searchBtn = $("#searchButton");
 
-  if (searchInput) {
-    searchInput.addEventListener("input", e => {
-      currentQuery = e.target.value || "";
-      debouncedSearch();
-    });
+  searchInput.addEventListener("input", e => {
+    currentQuery = e.target.value;
+    debouncedSearch();
+  });
 
-    searchInput.addEventListener("keydown", e => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        currentQuery = searchInput.value || "";
-        performSearch(1);
-      }
-    });
-  }
-
-  if (searchBtn) {
-    searchBtn.addEventListener("click", () => {
-      currentQuery = searchInput.value || "";
-      performSearch(1);
-    });
-  }
-
-  yearFilter.addEventListener("change", () => performSearch(1));
-  institutionFilter.addEventListener("change", () => performSearch(1));
-
-  const clearBtn = qs("#clearFilters");
-  if (clearBtn) {
-    clearBtn.addEventListener("click", () => {
-      yearFilter.value = "";
-      institutionFilter.value = "";
-      currentQuery = "";
-      const searchInputEl = qs("#searchInput");
-      if (searchInputEl) searchInputEl.value = "";
-      performSearch(1);
-    });
-  }
+  searchBtn.addEventListener("click", () => {
+    currentQuery = searchInput.value;
+    performSearch(1);
+  });
 
   prevPageBtn.addEventListener("click", () => {
     if (currentPage > 1) performSearch(currentPage - 1);
   });
 
   nextPageBtn.addEventListener("click", () => {
-    const totalPages = Math.ceil(totalResults / PAGE_SIZE);
-    if (currentPage < totalPages) performSearch(currentPage + 1);
+    performSearch(currentPage + 1);
+  });
+
+  yearFilter.addEventListener("change", () => performSearch(1));
+  institutionFilter.addEventListener("change", () => performSearch(1));
+
+  $("#clearFilters").addEventListener("click", () => {
+    yearFilter.value = "";
+    institutionFilter.value = "";
+    performSearch(1);
   });
 });
