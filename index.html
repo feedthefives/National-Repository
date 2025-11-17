@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,54 +13,45 @@
 
 <body>
 
-  <!-- ====================== HEADER ====================== -->
+  <!-- HEADER -->
   <header class="header-bar">
     <div class="header-inner">
 
-      <!-- Logo (left aligned) -->
+      <!-- Logo -->
       <img src="logo.jpg" alt="Logo" class="header-logo">
 
       <!-- Centered title -->
       <div class="header-text">
         <h1>National Repository</h1>
-        <h2>South African Theses &amp; Dissertations</h2>
+        <h2>South African Theses & Dissertations</h2>
       </div>
 
     </div>
   </header>
 
-  <!-- ====================== MAIN CONTENT ====================== -->
+  <!-- MAIN -->
   <main class="page">
 
     <!-- Search -->
     <section class="search-section">
+      <label class="search-label" for="searchInput">
+        Search national theses & dissertations
+      </label>
 
-      <div class="search-center">
-        <label class="search-label" for="searchInput">
-          Search national theses &amp; dissertations
-        </label>
-
-        <div class="search-row">
-          <input
-            id="searchInput"
-            class="search-input"
-            type="text"
-            placeholder="Type a keyword, title, or author…"
-          />
-          <button id="searchButton" class="btn primary-btn">Search</button>
-        </div>
-
-        <p class="search-subtitle">
-          Searching: <span class="emphasis">South African Institutional Repositories</span> – Theses &amp; dissertations only
-        </p>
+      <div class="search-row">
+        <input id="searchInput" class="search-input" type="text" placeholder="Type a keyword, title, or author…" />
+        <button id="searchButton" class="btn primary-btn">Search</button>
       </div>
 
+      <p class="search-subtitle">
+        Searching: <span class="emphasis">South African Institutional Repositories</span> – Theses & dissertations only
+      </p>
     </section>
 
-    <!-- ====================== FILTERS + RESULTS ====================== -->
+    <!-- Filters & Results -->
     <section class="content-layout">
 
-      <!-- FILTERS PANEL (hidden until results load) -->
+      <!-- FILTERS -->
       <aside id="filtersPanel" class="filters-panel hidden">
         <h2>Filters</h2>
 
@@ -85,43 +75,38 @@
 
         <div class="status-box">
           <div class="status-label">System status</div>
-          <div id="systemStatus" class="status-body">
-            Loading…
-          </div>
+          <div id="systemStatus" class="status-body">Loading…</div>
         </div>
       </aside>
 
-      <!-- RESULTS PANEL -->
+      <!-- RESULTS -->
       <section id="resultsPanel" class="results-panel hidden">
-
         <div class="results-header">
-          <div id="resultsSummary" class="results-summary">Start typing to search theses…</div>
+          <div id="resultsSummary" class="results-summary">
+            Start typing to search theses…
+          </div>
         </div>
 
         <div id="resultsGrid" class="cards-grid"></div>
 
-        <!-- Pagination -->
         <div id="pagination" class="pagination" style="display:none;">
           <button id="prevPage" class="btn ghost-btn small-btn" disabled>&laquo; Prev</button>
           <span id="pageInfo" class="page-info"></span>
           <button id="nextPage" class="btn ghost-btn small-btn" disabled>Next &raquo;</button>
         </div>
-
       </section>
 
     </section>
   </main>
 
-  <!-- ====================== FOOTER ====================== -->
+  <!-- FOOTER -->
   <footer class="site-footer">
     <div class="footer-inner">
-      <span>&copy; 2025 - National Theses Repositories Harvester.</span>
-      
-      <span>Contact Vuyo for support</span>
+      <span>&copy; 2025 National Theses Repository Harvester.</span>
+      <span>Built on South African DSpace repositories.</span>
     </div>
   </footer>
 
   <script src="script.js"></script>
-
 </body>
 </html>
