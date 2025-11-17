@@ -44,23 +44,24 @@ async function autoHarvestOnLoad() {
     const data = await res.json();
     console.log("Auto-harvest complete:", data);
 
-    // Now filters have data → Load them AFTER auto-harvest
+    // Now filters + status have data
     await loadFilters();
     await loadHealth();
 
-    // Show initial published theses (latest harvest)
+    // Show initial records (no query filter)
     await loadInitialRecords();
   } catch (err) {
     console.error("Auto-harvest error:", err);
+    setSummary("Could not auto-harvest. Try searching manually.");
   }
 }
 
 // -----------------------------
-// Load initial harvested data (no search query yet)
+// Load initial harvested data
 // -----------------------------
 async function loadInitialRecords() {
   try {
-    const res = await fetch(`${API_BASE}/search?q=&page=1&pageSize=${PAGE_SIZE}`);
+    const res = await fetch(`${API_BASE}/search?page=1&pageSize=${PAGE_SIZE}`);
     const data = await res.json();
 
     if (!data.results || data.results.length === 0) {
@@ -68,13 +69,12 @@ async function loadInitialRecords() {
       return;
     }
 
-    // Display initial results
     resultsPanel.classList.remove("hidden");
     filtersPanel.classList.remove("hidden");
 
+    totalResults = data.total || data.results.length;
     renderResults(data.results);
-    setSummary(`${data.total.toLocaleString()} available theses`);
-    totalResults = data.total;
+    setSummary(`${totalResults.toLocaleString()} available theses`);
     updatePagination();
   } catch (e) {
     console.error("Initial load error:", e);
@@ -83,7 +83,7 @@ async function loadInitialRecords() {
 }
 
 // -----------------------------
-// Load Filters (AFTER auto-harvest only)
+// Load Filters (after auto-harvest)
 // -----------------------------
 async function loadFilters() {
   try {
@@ -114,6 +114,9 @@ async function loadFilters() {
   }
 }
 
+// -----------------------------
+// Load Health
+// -----------------------------
 async function loadHealth() {
   try {
     const res = await fetch(`${API_BASE}/health`);
@@ -127,6 +130,8 @@ async function loadHealth() {
           Updated: ${new Date(data.time).toLocaleString()}
         </div>
       `;
+    } else {
+      statusBox.textContent = "Status unavailable.";
     }
   } catch (e) {
     console.error("Health error:", e);
@@ -180,6 +185,8 @@ function renderResults(records) {
       ? r.authors.join(", ")
       : r.authors || "";
 
+    const handle = r.identifier || r.url || "";
+
     const card = document.createElement("article");
     card.className = "card";
     card.innerHTML = `
@@ -193,8 +200,8 @@ function renderResults(records) {
         <div class="card-meta">
           ${r.year ? `Year: ${r.year}` : ""}<br/>
           ${
-            r.identifier
-              ? `Handle: ${r.identifier.replace(/^https?:\/\//, "")}`
+            handle
+              ? `Handle: ${handle.replace(/^https?:\/\//, "")}`
               : ""
           }
         </div>
@@ -221,10 +228,7 @@ function updatePagination() {
     return;
   }
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(totalResults / PAGE_SIZE)
-  );
+  const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE));
   paginationEl.style.display = "flex";
   pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
 
@@ -252,10 +256,11 @@ async function performSearch(page = 1) {
   setSummary("Searching national repositories…");
 
   const params = new URLSearchParams({
-    q,
     page: String(currentPage),
-    pageSize: String(PAGE_SIZE)
+    pageSize: String(PAGE_SIZE),
   });
+
+  if (q) params.set("q", q);
   if (year) params.set("year", year);
   if (inst) params.set("institution", inst);
 
