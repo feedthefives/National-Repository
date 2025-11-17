@@ -7,23 +7,24 @@ let totalResults = 0;
 
 const qs = sel => document.querySelector(sel);
 
-const resultsGrid        = qs("#resultsGrid");
-const resultsSummary     = qs("#resultsSummary");
-const yearFilter         = qs("#yearFilter");
-const institutionFilter  = qs("#institutionFilter");
-const pageInfo           = qs("#pageInfo");
-const prevPageBtn        = qs("#prevPage");
-const nextPageBtn        = qs("#nextPage");
-const paginationEl       = qs("#pagination");
-const statusBox          = qs("#systemStatus");
-const filtersPanel       = qs("#filtersPanel");
-const resultsPanel       = qs("#resultsPanel");
+const resultsGrid       = qs("#resultsGrid");
+const resultsSummary    = qs("#resultsSummary");
+const yearFilter        = qs("#yearFilter");
+const institutionFilter = qs("#institutionFilter");
+const pageInfo          = qs("#pageInfo");
+const prevPageBtn       = qs("#prevPage");
+const nextPageBtn       = qs("#nextPage");
+const paginationEl      = qs("#pagination");
+const statusBox         = qs("#systemStatus");
+
+const filtersPanel      = qs("#filtersPanel");
+const resultsPanel      = qs("#resultsPanel");
 
 function setSummary(text) {
   if (resultsSummary) resultsSummary.textContent = text;
 }
 
-// Debounce helper (for live search typing)
+// Debounce helper for live typing
 function debounce(fn, delay) {
   let t;
   return (...args) => {
@@ -32,56 +33,31 @@ function debounce(fn, delay) {
   };
 }
 
-/* ======================= AUTO HARVEST ON LOAD ======================= */
-
+// -----------------------------
+// AUTO HARVEST ON PAGE LOAD
+// -----------------------------
 async function autoHarvestOnLoad() {
   try {
     const res = await fetch(`${API_BASE}/auto-harvest`);
     const data = await res.json();
     console.log("Auto-harvest:", data);
 
+    // Load filters & health after we have some data
     await loadFilters();
     await loadHealth();
-    await loadInitialRecords();
+
+    // We do NOT force initial records here – user starts by typing
+    renderEmpty("Start typing above to search the national theses repository.");
+    setSummary("Start typing to search theses…");
   } catch (err) {
     console.error("Auto-harvest error:", err);
     setSummary("Could not auto-harvest. Try searching manually.");
   }
 }
 
-/* ======================= INITIAL RECORDS ======================= */
-
-async function loadInitialRecords() {
-  try {
-    const params = new URLSearchParams({
-      page: "1",
-      pageSize: String(PAGE_SIZE)
-      // no q → backend returns all cached records, paginated
-    });
-
-    const res = await fetch(`${API_BASE}/search?${params.toString()}`);
-    const data = await res.json();
-
-    if (!data.results || data.results.length === 0) {
-      renderEmpty("Start typing above to search the national theses repository.");
-      return;
-    }
-
-    resultsPanel.classList.remove("hidden");
-    filtersPanel.classList.remove("hidden");
-
-    totalResults = data.total || data.results.length;
-    renderResults(data.results);
-    setSummary(`${totalResults.toLocaleString()} available theses`);
-    updatePagination();
-  } catch (e) {
-    console.error("Initial load error:", e);
-    renderError("Could not load initial records.");
-  }
-}
-
-/* ======================= FILTERS ======================= */
-
+// -----------------------------
+// Load Filters
+// -----------------------------
 async function loadFilters() {
   try {
     yearFilter.innerHTML = `<option value="">All years</option>`;
@@ -111,23 +87,20 @@ async function loadFilters() {
   }
 }
 
-/* ======================= HEALTH ======================= */
-
+// -----------------------------
+// Load Health
+// -----------------------------
 async function loadHealth() {
   try {
     const res = await fetch(`${API_BASE}/health`);
     const data = await res.json();
 
     if (data.ok) {
-      const total = data.total_records || 0;
-      const repos = data.repositories || 0;
-      const ts    = data.timestamp;
-
       statusBox.innerHTML = `
-        <div><strong>Total records:</strong> ${total.toLocaleString()}</div>
-        <div><strong>Repositories:</strong> ${repos}</div>
+        <div><strong>Total records:</strong> ${Number(data.count || 0).toLocaleString()}</div>
+        <div><strong>Repositories:</strong> ${data.repositories}</div>
         <div style="font-size:11px;color:#6b7280;margin-top:4px;">
-          Updated: ${ts ? new Date(ts).toLocaleString() : "—"}
+          Updated: ${new Date(data.time).toLocaleString()}
         </div>
       `;
     } else {
@@ -139,8 +112,9 @@ async function loadHealth() {
   }
 }
 
-/* ======================= RENDER HELPERS ======================= */
-
+// -----------------------------
+// Rendering helpers
+// -----------------------------
 function renderLoading() {
   resultsGrid.innerHTML = `
     <div class="empty-state">
@@ -184,7 +158,7 @@ function renderResults(records) {
       ? r.authors.join(", ")
       : r.authors || "";
 
-    const handle = r.identifier || r.url || "";
+    const handle = r.url || r.identifier || "";
 
     const card = document.createElement("article");
     card.className = "card";
@@ -200,7 +174,7 @@ function renderResults(records) {
           ${r.year ? `Year: ${r.year}` : ""}<br/>
           ${
             handle
-              ? `Handle: ${handle.replace(/^https?:\/\//, "")}`
+              ? `Handle: ${String(handle).replace(/^https?:\/\//, "")}`
               : ""
           }
         </div>
@@ -217,8 +191,9 @@ function renderResults(records) {
   }
 }
 
-/* ======================= PAGINATION ======================= */
-
+// -----------------------------
+// Pagination
+// -----------------------------
 function updatePagination() {
   if (!paginationEl) return;
   if (totalResults <= PAGE_SIZE) {
@@ -234,14 +209,14 @@ function updatePagination() {
   nextPageBtn.disabled = currentPage >= totalPages;
 }
 
-/* ======================= SEARCH ======================= */
-
+// -----------------------------
+// Search (cache + live harvest on backend)
+// -----------------------------
 async function performSearch(page = 1) {
-  const q   = currentQuery.trim();
+  const q    = currentQuery.trim();
   const year = yearFilter.value;
   const inst = institutionFilter.value;
 
-  // If there's literally nothing to filter by, show basic message
   if (!q && !year && !inst) {
     renderEmpty("Start typing to search theses…");
     paginationEl.style.display = "none";
@@ -255,7 +230,7 @@ async function performSearch(page = 1) {
 
   const params = new URLSearchParams({
     page: String(currentPage),
-    pageSize: String(PAGE_SIZE)
+    pageSize: String(PAGE_SIZE),
   });
 
   if (q)    params.set("q", q);
@@ -268,7 +243,7 @@ async function performSearch(page = 1) {
 
     totalResults = data.total || 0;
 
-    if (totalResults === 0) {
+    if (!data.results || totalResults === 0) {
       renderEmpty("No theses match your search.");
       paginationEl.style.display = "none";
       setSummary("0 results.");
@@ -277,9 +252,7 @@ async function performSearch(page = 1) {
 
     renderResults(data.results);
     setSummary(
-      `${totalResults.toLocaleString()} result${
-        totalResults === 1 ? "" : "s"
-      } found`
+      `${totalResults.toLocaleString()} result${totalResults === 1 ? "" : "s"} found`
     );
     updatePagination();
   } catch (e) {
@@ -291,8 +264,9 @@ async function performSearch(page = 1) {
 
 const debouncedSearch = debounce(() => performSearch(1), 450);
 
-/* ======================= EVENT WIRING ======================= */
-
+// -----------------------------
+// Event Listeners
+// -----------------------------
 document.addEventListener("DOMContentLoaded", () => {
   autoHarvestOnLoad();
 
@@ -300,13 +274,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const searchBtn   = qs("#searchButton");
 
   if (searchInput) {
-    // Live search while typing
     searchInput.addEventListener("input", e => {
       currentQuery = e.target.value || "";
       debouncedSearch();
     });
 
-    // Enter key
     searchInput.addEventListener("keydown", e => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -331,6 +303,9 @@ document.addEventListener("DOMContentLoaded", () => {
     clearBtn.addEventListener("click", () => {
       yearFilter.value = "";
       institutionFilter.value = "";
+      currentQuery = "";
+      const searchInputEl = qs("#searchInput");
+      if (searchInputEl) searchInputEl.value = "";
       performSearch(1);
     });
   }
