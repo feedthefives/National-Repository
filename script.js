@@ -1,11 +1,9 @@
-
 const API_BASE = "https://national-repository.feedthefives.workers.dev/api";
 const PAGE_SIZE = 20;
 
 let currentQuery = "";
 let currentPage = 1;
 let totalResults = 0;
-let isLiveSearching = false;
 
 const $ = sel => document.querySelector(sel);
 
@@ -25,38 +23,42 @@ const paginationEl = $("#pagination");
 const statusBox = $("#systemStatus");
 
 /* ---------------------------------------------------
-   NEW: Load cached records IMMEDIATELY on UI open
+   IMMEDIATE UI LOAD - Cached data only
 --------------------------------------------------- */
 async function initializeUI() {
   try {
-    // Load everything in parallel for fastest display
+    // Load cached data immediately - no waiting for harvest
     await Promise.all([
       loadInitialRecords(),
       loadFilters(),
       loadHealth()
     ]);
     
-    // Start background harvest AFTER UI is responsive
+    // Start background harvest AFTER UI is ready (non-blocking)
     setTimeout(() => {
       triggerBackgroundHarvest();
-    }, 1000);
+    }, 500);
   } catch (e) {
     console.error("UI initialization error:", e);
   }
 }
 
 /* ---------------------------------------------------
-   NEW: Background harvest that doesn't block UI
+   Background harvest - doesn't block UI
 --------------------------------------------------- */
 async function triggerBackgroundHarvest() {
   try {
     console.log("Starting background harvest...");
-    // Don't await - let it run in background
+    // Don't await - completely non-blocking
     fetch(`${API_BASE}/harvest-now`)
       .then(() => {
         console.log("Background harvest completed");
-        // Optional: Refresh health stats after harvest
+        // Refresh data to show newly harvested records
         loadHealth();
+        // Only refresh results if we're on the initial view (no search)
+        if (!currentQuery) {
+          loadInitialRecords();
+        }
       })
       .catch(e => console.error("Background harvest failed:", e));
   } catch (e) {
@@ -65,15 +67,15 @@ async function triggerBackgroundHarvest() {
 }
 
 /* ---------------------------------------------------
-   Load initial cached records (no query) - IMMEDIATE
+   Load initial cached records only
 --------------------------------------------------- */
 async function loadInitialRecords() {
   try {
-    const res = await fetch(`${API_BASE}/search?page=1&pageSize=${PAGE_SIZE}`);
+    const res = await fetch(`${API_BASE}/search?page=1&pageSize=${PAGE_SIZE}&cachedOnly=true`);
     const data = await res.json();
 
     if (!data.results || data.results.length === 0) {
-      renderEmpty("Start typing above to search the national theses repository.");
+      renderEmpty("No cached theses found. Background harvest started...");
       return;
     }
 
@@ -85,7 +87,7 @@ async function loadInitialRecords() {
     updatePagination();
   } catch (e) {
     console.error(e);
-    renderError("Could not load initial records.");
+    renderError("Could not load cached records.");
   }
 }
 
@@ -221,7 +223,7 @@ function updatePagination() {
 }
 
 /* ---------------------------------------------------
-   NEW: Two-phase search - cached first, then live
+   SMART SEARCH: Cached first, then live harvest
 --------------------------------------------------- */
 async function performSearch(page = 1) {
   currentPage = page;
@@ -229,26 +231,26 @@ async function performSearch(page = 1) {
   const year = yearFilter.value;
   const inst = institutionFilter.value;
 
-  // If no query, just do normal search
-  if (!q) {
-    await performCachedSearch(page, year, inst);
-    return;
-  }
+  // PHASE 1: Show cached results immediately
+  await performCachedSearch(q, page, year, inst);
 
-  // For searches with query: TWO PHASE APPROACH
-  await performTwoPhaseSearch(q, page, year, inst);
+  // PHASE 2: If there's a search query, trigger live harvest in background
+  if (q && q.length >= 2) {
+    triggerLiveSearch(q, year, inst);
+  }
 }
 
 /* ---------------------------------------------------
-   NEW: Phase 1 - Search cached data immediately
+   Cached search only (fast)
 --------------------------------------------------- */
-async function performCachedSearch(page = 1, year = "", inst = "") {
+async function performCachedSearch(q, page = 1, year = "", inst = "") {
   const params = new URLSearchParams({
     page,
     pageSize: PAGE_SIZE,
-    cachedOnly: "true"  // Tell backend to skip live harvest
+    cachedOnly: "true"
   });
 
+  if (q) params.set("q", q);
   if (year) params.set("year", year);
   if (inst) params.set("institution", inst);
 
@@ -259,7 +261,11 @@ async function performCachedSearch(page = 1, year = "", inst = "") {
     totalResults = data.total;
 
     if (totalResults === 0) {
-      renderEmpty("No theses match your search.");
+      if (q) {
+        renderEmpty("No cached results found. Live searching repositories...");
+      } else {
+        renderEmpty("No theses found in cache.");
+      }
       paginationEl.style.display = "none";
       return;
     }
@@ -267,69 +273,38 @@ async function performCachedSearch(page = 1, year = "", inst = "") {
     renderResults(data.results);
     updatePagination();
   } catch (e) {
-    console.error("Search error", e);
+    console.error("Cached search error", e);
     renderError("Search failed.");
   }
 }
 
 /* ---------------------------------------------------
-   NEW: Phase 2 - Cached first, then live harvest
+   Live search harvest (background)
 --------------------------------------------------- */
-async function performTwoPhaseSearch(q, page = 1, year = "", inst = "") {
-  // PHASE 1: Show cached results immediately
-  const cachedParams = new URLSearchParams({
-    q,
-    page,
-    pageSize: PAGE_SIZE,
-    cachedOnly: "true"  // Only search existing cache
-  });
+async function triggerLiveSearch(q, year = "", inst = "") {
+  if (!q || q.length < 2) return;
 
-  if (year) cachedParams.set("year", year);
-  if (inst) cachedParams.set("institution", inst);
+  console.log(`Triggering live search for: "${q}"`);
+  
+  const params = new URLSearchParams({ q });
+  if (year) params.set("year", year);
+  if (inst) params.set("institution", inst);
 
-  try {
-    // First show whatever we have in cache
-    const cachedRes = await fetch(`${API_BASE}/search?${cachedParams}`);
-    const cachedData = await cachedRes.json();
-
-    if (cachedData.results && cachedData.results.length > 0) {
-      totalResults = cachedData.total;
-      renderResults(cachedData.results);
-      updatePagination();
-    } else {
-      // No cached results, show loading
-      renderLoading("Searching repositories...");
-    }
-
-    // PHASE 2: Trigger live harvest in background
-    const liveParams = new URLSearchParams({
-      q,
+  // Don't await - run in background
+  fetch(`${API_BASE}/live-search?${params}`)
+    .then(async (res) => {
+      const data = await res.json();
+      console.log("Live search completed:", data.message);
+      
+      // Refresh results to show newly harvested data
+      await performCachedSearch(q, currentPage, year, inst);
+      
+      // Update health stats
+      loadHealth();
+    })
+    .catch(e => {
+      console.error("Live search error:", e);
     });
-    if (year) liveParams.set("year", year);
-    if (inst) liveParams.set("institution", inst);
-
-    isLiveSearching = true;
-    
-    // Don't await - let it run in background
-    fetch(`${API_BASE}/live-search?${liveParams}`)
-      .then(async (liveRes) => {
-        const liveData = await liveRes.json();
-        console.log("Live search completed, found:", liveData.total, "results");
-        
-        // Refresh the display with newly harvested data
-        await performCachedSearch(page, year, inst);
-      })
-      .catch(e => {
-        console.error("Live search error:", e);
-      })
-      .finally(() => {
-        isLiveSearching = false;
-      });
-
-  } catch (e) {
-    console.error("Two-phase search error", e);
-    renderError("Search failed.");
-  }
 }
 
 /* ---------------------------------------------------
@@ -349,7 +324,7 @@ const debouncedSearch = debounce(() => performSearch(1), 400);
    Event Listeners
 --------------------------------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
-  initializeUI();  // Changed from autoHarvestOnLoad
+  initializeUI();
 
   const searchInput = $("#searchInput");
   const searchButton = $("#searchButton");
@@ -378,6 +353,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#clearFilters").addEventListener("click", () => {
     yearFilter.value = "";
     institutionFilter.value = "";
+    currentQuery = "";
+    searchInput.value = "";
     performSearch(1);
   });
 });
