@@ -1,9 +1,11 @@
+
 const API_BASE = "https://national-repository.feedthefives.workers.dev/api";
 const PAGE_SIZE = 20;
 
 let currentQuery = "";
 let currentPage = 1;
 let totalResults = 0;
+let isLiveSearching = false;
 
 const $ = sel => document.querySelector(sel);
 
@@ -23,21 +25,47 @@ const paginationEl = $("#pagination");
 const statusBox = $("#systemStatus");
 
 /* ---------------------------------------------------
-   AUTO HARVEST ON LOAD
+   NEW: Load cached records IMMEDIATELY on UI open
 --------------------------------------------------- */
-async function autoHarvestOnLoad() {
+async function initializeUI() {
   try {
-    await fetch(`${API_BASE}/harvest-now`);
-    await loadFilters();
-    await loadHealth();
-    await loadInitialRecords();
+    // Load everything in parallel for fastest display
+    await Promise.all([
+      loadInitialRecords(),
+      loadFilters(),
+      loadHealth()
+    ]);
+    
+    // Start background harvest AFTER UI is responsive
+    setTimeout(() => {
+      triggerBackgroundHarvest();
+    }, 1000);
   } catch (e) {
-    console.error("Auto-harvest error:", e);
+    console.error("UI initialization error:", e);
   }
 }
 
 /* ---------------------------------------------------
-   Load initial cached records (no query)
+   NEW: Background harvest that doesn't block UI
+--------------------------------------------------- */
+async function triggerBackgroundHarvest() {
+  try {
+    console.log("Starting background harvest...");
+    // Don't await - let it run in background
+    fetch(`${API_BASE}/harvest-now`)
+      .then(() => {
+        console.log("Background harvest completed");
+        // Optional: Refresh health stats after harvest
+        loadHealth();
+      })
+      .catch(e => console.error("Background harvest failed:", e));
+  } catch (e) {
+    console.error("Background harvest error:", e);
+  }
+}
+
+/* ---------------------------------------------------
+   Load initial cached records (no query) - IMMEDIATE
 --------------------------------------------------- */
 async function loadInitialRecords() {
   try {
@@ -166,6 +194,14 @@ function renderError(msg) {
     </div>`;
 }
 
+function renderLoading(msg = "Searching...") {
+  resultsGrid.innerHTML = `
+    <div class="empty-state">
+      <h3>${msg}</h3>
+      <p>Live harvesting from repositories...</p>
+    </div>`;
+}
+
 /* ---------------------------------------------------
    Pagination
 --------------------------------------------------- */
@@ -185,21 +221,34 @@ function updatePagination() {
 }
 
 /* ---------------------------------------------------
-   Perform search
+   NEW: Two-phase search - cached first, then live
 --------------------------------------------------- */
 async function performSearch(page = 1) {
   currentPage = page;
-
   const q = currentQuery.trim();
   const year = yearFilter.value;
   const inst = institutionFilter.value;
 
+  // If no query, just do normal search
+  if (!q) {
+    await performCachedSearch(page, year, inst);
+    return;
+  }
+
+  // For searches with query: TWO PHASE APPROACH
+  await performTwoPhaseSearch(q, page, year, inst);
+}
+
+/* ---------------------------------------------------
+   NEW: Phase 1 - Search cached data immediately
+--------------------------------------------------- */
+async function performCachedSearch(page = 1, year = "", inst = "") {
   const params = new URLSearchParams({
     page,
-    pageSize: PAGE_SIZE
+    pageSize: PAGE_SIZE,
+    cachedOnly: "true"  // Tell backend to skip live harvest
   });
 
-  if (q) params.set("q", q);
   if (year) params.set("year", year);
   if (inst) params.set("institution", inst);
 
@@ -224,6 +273,66 @@ async function performSearch(page = 1) {
 }
 
 /* ---------------------------------------------------
+   NEW: Phase 2 - Cached first, then live harvest
+--------------------------------------------------- */
+async function performTwoPhaseSearch(q, page = 1, year = "", inst = "") {
+  // PHASE 1: Show cached results immediately
+  const cachedParams = new URLSearchParams({
+    q,
+    page,
+    pageSize: PAGE_SIZE,
+    cachedOnly: "true"  // Only search existing cache
+  });
+
+  if (year) cachedParams.set("year", year);
+  if (inst) cachedParams.set("institution", inst);
+
+  try {
+    // First show whatever we have in cache
+    const cachedRes = await fetch(`${API_BASE}/search?${cachedParams}`);
+    const cachedData = await cachedRes.json();
+
+    if (cachedData.results && cachedData.results.length > 0) {
+      totalResults = cachedData.total;
+      renderResults(cachedData.results);
+      updatePagination();
+    } else {
+      // No cached results, show loading
+      renderLoading("Searching repositories...");
+    }
+
+    // PHASE 2: Trigger live harvest in background
+    const liveParams = new URLSearchParams({
+      q,
+    });
+    if (year) liveParams.set("year", year);
+    if (inst) liveParams.set("institution", inst);
+
+    isLiveSearching = true;
+    
+    // Don't await - let it run in background
+    fetch(`${API_BASE}/live-search?${liveParams}`)
+      .then(async (liveRes) => {
+        const liveData = await liveRes.json();
+        console.log("Live search completed, found:", liveData.total, "results");
+        
+        // Refresh the display with newly harvested data
+        await performCachedSearch(page, year, inst);
+      })
+      .catch(e => {
+        console.error("Live search error:", e);
+      })
+      .finally(() => {
+        isLiveSearching = false;
+      });
+
+  } catch (e) {
+    console.error("Two-phase search error", e);
+    renderError("Search failed.");
+  }
+}
+
+/* ---------------------------------------------------
    Debounce for live-search
 --------------------------------------------------- */
 function debounce(fn, delay) {
@@ -240,7 +349,7 @@ const debouncedSearch = debounce(() => performSearch(1), 400);
    Event Listeners
 --------------------------------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
-  autoHarvestOnLoad();
+  initializeUI();  // Changed from autoHarvestOnLoad
 
   const searchInput = $("#searchInput");
   const searchButton = $("#searchButton");
