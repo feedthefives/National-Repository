@@ -14,6 +14,8 @@ const resultsPanel = $("#resultsPanel");
 
 const yearFilter = $("#yearFilter");
 const institutionFilter = $("#institutionFilter");
+const authorFilter = $("#authorFilter");
+const keywordFilter = $("#keywordFilter");
 
 const pageInfo = $("#pageInfo");
 const prevPageBtn = $("#prevPage");
@@ -23,71 +25,60 @@ const paginationEl = $("#pagination");
 const statusBox = $("#systemStatus");
 
 /* ---------------------------------------------------
-   IMMEDIATE UI LOAD - Cached data only
+   SUMMARY HELPER
 --------------------------------------------------- */
-async function initializeUI() {
+function setSummary(text) {
+  if (!resultsSummary) return;
+  resultsSummary.textContent = text || "";
+}
+
+/* ---------------------------------------------------
+   AUTO HARVEST ON LOAD (non-blocking)
+--------------------------------------------------- */
+async function autoHarvestOnLoad() {
   try {
-    // Load cached data immediately - no waiting for harvest
-    await Promise.all([
-      loadInitialRecords(),
-      loadFilters(),
-      loadHealth()
-    ]);
-    
-    // Start background harvest AFTER UI is ready (non-blocking)
-    setTimeout(() => {
-      triggerBackgroundHarvest();
-    }, 500);
+    // Kick off a harvest in the background – do NOT block UI
+    fetch(`${API_BASE}/harvest-now`).catch(console.error);
+
+    // Immediately load whatever is already cached
+    await loadFilters();
+    await loadHealth();
+    await loadInitialRecords();
   } catch (e) {
-    console.error("UI initialization error:", e);
+    console.error("Auto-harvest error:", e);
+    setSummary("Could not auto-harvest. Try searching.");
   }
 }
 
 /* ---------------------------------------------------
-   Background harvest - doesn't block UI
---------------------------------------------------- */
-async function triggerBackgroundHarvest() {
-  try {
-    console.log("Starting background harvest...");
-    // Don't await - completely non-blocking
-    fetch(`${API_BASE}/harvest-now`)
-      .then(() => {
-        console.log("Background harvest completed");
-        // Refresh data to show newly harvested records
-        loadHealth();
-        // Only refresh results if we're on the initial view (no search)
-        if (!currentQuery) {
-          loadInitialRecords();
-        }
-      })
-      .catch(e => console.error("Background harvest failed:", e));
-  } catch (e) {
-    console.error("Background harvest error:", e);
-  }
-}
-
-/* ---------------------------------------------------
-   Load initial cached records only
+   Load initial cached records (no query)
 --------------------------------------------------- */
 async function loadInitialRecords() {
   try {
-    const res = await fetch(`${API_BASE}/search?page=1&pageSize=${PAGE_SIZE}&cachedOnly=true`);
+    const params = new URLSearchParams({
+      page: "1",
+      pageSize: String(PAGE_SIZE)
+    });
+
+    const res = await fetch(`${API_BASE}/search?${params.toString()}`);
     const data = await res.json();
 
     if (!data.results || data.results.length === 0) {
-      renderEmpty("No cached theses found. Background harvest started...");
+      renderEmpty("Start typing above to search the national theses repository.");
+      setSummary("");
       return;
     }
 
     resultsPanel.classList.remove("hidden");
     filtersPanel.classList.remove("hidden");
 
-    totalResults = data.total;
+    totalResults = data.total || data.results.length;
     renderResults(data.results);
     updatePagination();
+    setSummary(`${totalResults.toLocaleString()} cached theses available`);
   } catch (e) {
     console.error(e);
-    renderError("Could not load cached records.");
+    renderError("Could not load initial records.");
   }
 }
 
@@ -102,14 +93,14 @@ async function loadFilters() {
     yearFilter.innerHTML = `<option value="">All years</option>`;
     institutionFilter.innerHTML = `<option value="">All institutions</option>`;
 
-    data.years.forEach(y => {
+    (data.years || []).forEach(y => {
       const opt = document.createElement("option");
       opt.value = y;
       opt.textContent = y;
       yearFilter.appendChild(opt);
     });
 
-    data.institutions.forEach(inst => {
+    (data.institutions || []).forEach(inst => {
       const opt = document.createElement("option");
       opt.value = inst;
       opt.textContent = inst;
@@ -134,7 +125,6 @@ async function loadHealth() {
       <div><strong>Repositories:</strong> ${data.repositories}</div>
       <div style="font-size:11px;color:#6b7280;">Updated: ${new Date(data.time).toLocaleString()}</div>
     `;
-
   } catch (e) {
     console.error("Health load error", e);
     statusBox.textContent = "Could not load system status.";
@@ -154,25 +144,36 @@ function renderResults(records) {
       ? r.authors.join(", ")
       : (r.authors || "");
 
+    const url = r.url || "";
+    const isHandle = url.includes("handle.net");
+    const handleText = isHandle ? url.replace(/^https?:\/\//, "") : "";
+
+    const yearLine = r.year ? `Year: ${r.year}<br>` : "";
+    const handleLine = handleText ? `Handle: ${handleText}` : "";
+
     resultsGrid.innerHTML += `
       <article class="card">
         <div class="card-header-top">
           <span class="card-pill">Thesis</span>
-          <span class="card-inst">${r.institution}</span>
+          <span class="card-inst">${r.institution || ""}</span>
         </div>
 
-        <h3 class="card-title">${r.title}</h3>
+        <h3 class="card-title">${r.title || "Untitled thesis"}</h3>
 
         ${authors ? `<div class="card-authors">${authors}</div>` : ""}
 
         <div class="card-meta-row">
           <div class="card-meta">
-            ${r.year ? `Year: ${r.year}<br>` : ""}
-            Handle: ${r.url.replace(/^https?:\/\//, "")}
+            ${yearLine}
+            ${handleLine}
           </div>
 
           <div class="card-actions">
-            <a href="${r.url}" target="_blank">View thesis</a>
+            ${
+              isHandle
+                ? `<a href="${url}" target="_blank" rel="noopener noreferrer">View thesis</a>`
+                : ""
+            }
           </div>
         </div>
       </article>
@@ -196,24 +197,18 @@ function renderError(msg) {
     </div>`;
 }
 
-function renderLoading(msg = "Searching...") {
-  resultsGrid.innerHTML = `
-    <div class="empty-state">
-      <h3>${msg}</h3>
-      <p>Live harvesting from repositories...</p>
-    </div>`;
-}
-
 /* ---------------------------------------------------
    Pagination
 --------------------------------------------------- */
 function updatePagination() {
+  if (!paginationEl) return;
+
   if (totalResults <= PAGE_SIZE) {
     paginationEl.style.display = "none";
     return;
   }
 
-  const totalPages = Math.ceil(totalResults / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE));
 
   paginationEl.style.display = "flex";
   pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
@@ -223,92 +218,64 @@ function updatePagination() {
 }
 
 /* ---------------------------------------------------
-   SMART SEARCH: Cached first, then live harvest
+   Perform search (Option B – debounced)
 --------------------------------------------------- */
 async function performSearch(page = 1) {
   currentPage = page;
+
   const q = currentQuery.trim();
   const year = yearFilter.value;
   const inst = institutionFilter.value;
+  const author = (authorFilter.value || "").trim();
+  const keyword = (keywordFilter.value || "").trim();
 
-  // PHASE 1: Show cached results immediately
-  await performCachedSearch(q, page, year, inst);
-
-  // PHASE 2: If there's a search query, trigger live harvest in background
-  if (q && q.length >= 2) {
-    triggerLiveSearch(q, year, inst);
-  }
-}
-
-/* ---------------------------------------------------
-   Cached search only (fast)
---------------------------------------------------- */
-async function performCachedSearch(q, page = 1, year = "", inst = "") {
   const params = new URLSearchParams({
-    page,
-    pageSize: PAGE_SIZE,
-    cachedOnly: "true"
+    page: String(page),
+    pageSize: String(PAGE_SIZE)
   });
 
   if (q) params.set("q", q);
   if (year) params.set("year", year);
   if (inst) params.set("institution", inst);
+  if (author) params.set("author", author);
+  if (keyword) params.set("keyword", keyword);
 
   try {
-    const res = await fetch(`${API_BASE}/search?${params}`);
+    resultsGrid.innerHTML = `
+      <div class="empty-state">
+        <h3>Searching theses…</h3>
+        <p>Please wait while we query the national repositories.</p>
+      </div>
+    `;
+    setSummary("Searching national repositories…");
+
+    const res = await fetch(`${API_BASE}/search?${params.toString()}`);
     const data = await res.json();
 
-    totalResults = data.total;
+    totalResults = data.total || 0;
 
     if (totalResults === 0) {
-      if (q) {
-        renderEmpty("No cached results found. Live searching repositories...");
-      } else {
-        renderEmpty("No theses found in cache.");
-      }
+      renderEmpty("No theses match your search.");
       paginationEl.style.display = "none";
+      setSummary("0 results.");
       return;
     }
 
     renderResults(data.results);
     updatePagination();
+
+    setSummary(
+      `${totalResults.toLocaleString()} result${totalResults === 1 ? "" : "s"} found`
+    );
   } catch (e) {
-    console.error("Cached search error", e);
+    console.error("Search error", e);
     renderError("Search failed.");
+    setSummary("An error occurred while searching.");
   }
 }
 
 /* ---------------------------------------------------
-   Live search harvest (background)
---------------------------------------------------- */
-async function triggerLiveSearch(q, year = "", inst = "") {
-  if (!q || q.length < 2) return;
-
-  console.log(`Triggering live search for: "${q}"`);
-  
-  const params = new URLSearchParams({ q });
-  if (year) params.set("year", year);
-  if (inst) params.set("institution", inst);
-
-  // Don't await - run in background
-  fetch(`${API_BASE}/live-search?${params}`)
-    .then(async (res) => {
-      const data = await res.json();
-      console.log("Live search completed:", data.message);
-      
-      // Refresh results to show newly harvested data
-      await performCachedSearch(q, currentPage, year, inst);
-      
-      // Update health stats
-      loadHealth();
-    })
-    .catch(e => {
-      console.error("Live search error:", e);
-    });
-}
-
-/* ---------------------------------------------------
-   Debounce for live-search
+   Debounce for live-search (Option B)
 --------------------------------------------------- */
 function debounce(fn, delay) {
   let t;
@@ -324,11 +291,12 @@ const debouncedSearch = debounce(() => performSearch(1), 400);
    Event Listeners
 --------------------------------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
-  initializeUI();
+  autoHarvestOnLoad();
 
   const searchInput = $("#searchInput");
   const searchButton = $("#searchButton");
 
+  // MAIN LIVE SEARCH (q) – triggers live harvest in Worker
   searchInput.addEventListener("input", e => {
     currentQuery = e.target.value;
     debouncedSearch();
@@ -339,6 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
     performSearch(1);
   });
 
+  // Pagination
   prevPageBtn.addEventListener("click", () => {
     if (currentPage > 1) performSearch(currentPage - 1);
   });
@@ -347,14 +316,19 @@ document.addEventListener("DOMContentLoaded", () => {
     performSearch(currentPage + 1);
   });
 
+  // Filters – search immediately when changed
   yearFilter.addEventListener("change", () => performSearch(1));
   institutionFilter.addEventListener("change", () => performSearch(1));
 
+  authorFilter.addEventListener("input", debounce(() => performSearch(1), 400));
+  keywordFilter.addEventListener("input", debounce(() => performSearch(1), 400));
+
+  // Clear filters
   $("#clearFilters").addEventListener("click", () => {
     yearFilter.value = "";
     institutionFilter.value = "";
-    currentQuery = "";
-    searchInput.value = "";
+    authorFilter.value = "";
+    keywordFilter.value = "";
     performSearch(1);
   });
 });
