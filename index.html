@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,20 +7,16 @@
   <title>National Theses Repository</title>
 
   <link rel="stylesheet" href="style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 
 <body>
-
   <!-- HEADER -->
   <header class="header-bar">
     <div class="header-inner">
-      <!-- Logo -->
       <img src="logo.jpg" alt="Logo" class="header-logo" />
-
-      <!-- Centered title -->
       <div class="header-text">
         <h1>National Repository</h1>
         <h2>South African Theses &amp; Dissertations</h2>
@@ -29,8 +26,7 @@
 
   <!-- MAIN -->
   <main class="page">
-
-    <!-- Search -->
+    <!-- SEARCH -->
     <section class="search-section">
       <div class="search-center">
         <label class="search-label" for="searchInput">
@@ -53,9 +49,8 @@
       </div>
     </section>
 
-    <!-- Filters & Results -->
+    <!-- FILTERS + RESULTS -->
     <section class="content-layout">
-
       <!-- FILTERS -->
       <aside id="filtersPanel" class="filters-panel hidden">
         <h2>Filters</h2>
@@ -75,21 +70,13 @@
         </div>
 
         <div class="filter-group">
-          <label for="authorFilter">Author</label>
-          <input
-            id="authorFilter"
-            type="text"
-            placeholder="Any author…"
-          />
+          <label for="authorFilter">Author (contains)</label>
+          <input id="authorFilter" type="text" class="filter-input" placeholder="e.g. Mokoena" />
         </div>
 
         <div class="filter-group">
-          <label for="keywordFilter">Keyword (cached title/abstract)</label>
-          <input
-            id="keywordFilter"
-            type="text"
-            placeholder="Filter cached results…"
-          />
+          <label for="keywordFilter">Keyword in abstract</label>
+          <input id="keywordFilter" type="text" class="filter-input" placeholder="e.g. HIV, climate" />
         </div>
 
         <button id="clearFilters" class="btn ghost-btn small-btn">
@@ -105,7 +92,9 @@
       <!-- RESULTS -->
       <section id="resultsPanel" class="results-panel hidden">
         <div class="results-header">
-          <div id="resultsSummary" class="results-summary"></div>
+          <div id="resultsSummary" class="results-summary">
+            <!-- we’ll update this in JS -->
+          </div>
         </div>
 
         <div id="resultsGrid" class="cards-grid"></div>
@@ -116,7 +105,6 @@
           <button id="nextPage" class="btn ghost-btn small-btn" disabled>Next &raquo;</button>
         </div>
       </section>
-
     </section>
   </main>
 
