@@ -16,16 +16,14 @@
   <!-- HEADER -->
   <header class="header-bar">
     <div class="header-inner">
-
       <!-- Logo -->
-      <img src="logo.jpg" alt="Logo" class="header-logo">
+      <img src="logo.jpg" alt="Logo" class="header-logo" />
 
       <!-- Centered title -->
       <div class="header-text">
         <h1>National Repository</h1>
-        <h2>South African Theses & Dissertations</h2>
+        <h2>South African Theses &amp; Dissertations</h2>
       </div>
-
     </div>
   </header>
 
@@ -33,19 +31,26 @@
   <main class="page">
 
     <!-- Search -->
-    <section class="search-section search-center">
-      <label class="search-label" for="searchInput">
-        Search national theses & dissertations
-      </label>
+    <section class="search-section">
+      <div class="search-center">
+        <label class="search-label" for="searchInput">
+          Search national theses &amp; dissertations
+        </label>
 
-      <div class="search-row">
-        <input id="searchInput" class="search-input" type="text" placeholder="Type a keyword, title, or author…" />
-        <button id="searchButton" class="btn primary-btn">Search</button>
+        <div class="search-row">
+          <input
+            id="searchInput"
+            class="search-input"
+            type="text"
+            placeholder="Type a keyword, title, or author…"
+          />
+          <button id="searchButton" class="btn primary-btn">Search</button>
+        </div>
+
+        <p class="search-subtitle">
+          Searching: <span class="emphasis">South African Institutional Repositories</span> – Theses &amp; dissertations only
+        </p>
       </div>
-
-      <p class="search-subtitle">
-        Searching: <span class="emphasis">South African Institutional Repositories</span> - Theses & Dissertations Only
-      </p>
     </section>
 
     <!-- Filters & Results -->
@@ -69,6 +74,24 @@
           </select>
         </div>
 
+        <div class="filter-group">
+          <label for="authorFilter">Author</label>
+          <input
+            id="authorFilter"
+            type="text"
+            placeholder="Any author…"
+          />
+        </div>
+
+        <div class="filter-group">
+          <label for="keywordFilter">Keyword (cached title/abstract)</label>
+          <input
+            id="keywordFilter"
+            type="text"
+            placeholder="Filter cached results…"
+          />
+        </div>
+
         <button id="clearFilters" class="btn ghost-btn small-btn">
           Clear filters
         </button>
@@ -82,14 +105,11 @@
       <!-- RESULTS -->
       <section id="resultsPanel" class="results-panel hidden">
         <div class="results-header">
-          <div id="resultsSummary" class="results-summary">
-            Start typing to search theses…
-          </div>
+          <div id="resultsSummary" class="results-summary"></div>
         </div>
 
         <div id="resultsGrid" class="cards-grid"></div>
 
-        <!-- Pagination -->
         <div id="pagination" class="pagination" style="display:none;">
           <button id="prevPage" class="btn ghost-btn small-btn" disabled>&laquo; Prev</button>
           <span id="pageInfo" class="page-info"></span>
