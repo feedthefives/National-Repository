@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,7 +15,9 @@
   <!-- HEADER -->
   <header class="header-bar">
     <div class="header-inner">
+      <!-- Logo on far left -->
       <img src="logo.jpg" alt="Logo" class="header-logo" />
+      <!-- Centered title -->
       <div class="header-text">
         <h1>National Repository</h1>
         <h2>South African Theses &amp; Dissertations</h2>
@@ -26,7 +27,7 @@
 
   <!-- MAIN -->
   <main class="page">
-    <!-- SEARCH -->
+    <!-- Search -->
     <section class="search-section">
       <div class="search-center">
         <label class="search-label" for="searchInput">
@@ -44,15 +45,17 @@
         </div>
 
         <p class="search-subtitle">
-          Searching: <span class="emphasis">South African Institutional Repositories</span> – Theses &amp; dissertations only
+          Searching:
+          <span class="emphasis">South African Institutional Repositories</span> –
+          Theses &amp; dissertations only
         </p>
       </div>
     </section>
 
-    <!-- FILTERS + RESULTS -->
+    <!-- Filters & Results -->
     <section class="content-layout">
       <!-- FILTERS -->
-      <aside id="filtersPanel" class="filters-panel hidden">
+      <aside id="filtersPanel" class="filters-panel">
         <h2>Filters</h2>
 
         <div class="filter-group">
@@ -71,12 +74,20 @@
 
         <div class="filter-group">
           <label for="authorFilter">Author (contains)</label>
-          <input id="authorFilter" type="text" class="filter-input" placeholder="e.g. Mokoena" />
+          <input
+            id="authorFilter"
+            type="text"
+            placeholder="e.g. Mokoena"
+          />
         </div>
 
         <div class="filter-group">
-          <label for="keywordFilter">Keyword in abstract</label>
-          <input id="keywordFilter" type="text" class="filter-input" placeholder="e.g. HIV, climate" />
+          <label for="abstractFilter">Keyword in abstract</label>
+          <input
+            id="abstractFilter"
+            type="text"
+            placeholder="e.g. HIV, climate"
+          />
         </div>
 
         <button id="clearFilters" class="btn ghost-btn small-btn">
@@ -90,10 +101,10 @@
       </aside>
 
       <!-- RESULTS -->
-      <section id="resultsPanel" class="results-panel hidden">
+      <section id="resultsPanel" class="results-panel">
         <div class="results-header">
           <div id="resultsSummary" class="results-summary">
-            <!-- we’ll update this in JS -->
+            Loading cached theses…
           </div>
         </div>
 
